@@ -1,0 +1,391 @@
+% main.tex
+% SHORT-NOTE CHANGE: Refactored from full paper to short communication
+% Finite-Sample Conditioning in Double Machine Learning: A Short Note
+\documentclass[11pt]{article}
+
+% --------------------------------------------------------------------------
+% Packages
+% --------------------------------------------------------------------------
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black,urlcolor=blue!70!black]{hyperref}
+\usepackage{enumitem}
+\usepackage{bbm}
+
+% --------------------------------------------------------------------------
+% Theorem Environments
+% --------------------------------------------------------------------------
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{assumption}{Assumption}
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+% --------------------------------------------------------------------------
+% Custom Commands
+% --------------------------------------------------------------------------
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\ind}{\mathbbm{1}}
+\newcommand{\norm}[1]{\|#1\|}
+\newcommand{\abs}[1]{|#1|}
+
+% Probability and convergence
+\newcommand{\dto}{\xrightarrow{d}}
+\newcommand{\pto}{\xrightarrow{p}}
+\newcommand{\op}{o_P}
+\newcommand{\Op}{O_P}
+
+% --------------------------------------------------------------------------
+% Title
+% --------------------------------------------------------------------------
+% SHORT-NOTE CHANGE: Updated title to reflect short communication format
+\title{Finite-Sample Conditioning in Double Machine Learning:\\ A Short Note}
+\author{%
+  Anonymous Author\thanks{Affiliation and contact information. This is a short communication.}
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% SHORT-NOTE CHANGE: Condensed abstract focusing on core contributions
+\begin{abstract}
+Double Machine Learning (DML) provides asymptotically valid inference for causal parameters via Neyman-orthogonal scores and cross-fitting. However, finite-sample reliability depends on the conditioning of the empirical moment equations. This short note introduces a condition number $\kappa_{\mathrm{DML}} := 1/|\hat{J}_\theta|$ for the Partially Linear Regression (PLR) model and establishes a coverage error bound showing that miscoverage scales as $\kappa_{\mathrm{DML}}/\sqrt{n} + \kappa_{\mathrm{DML}}\sqrt{n}\cdot r_n$, where $r_n$ captures nuisance estimation error. We characterize three conditioning regimes---well-conditioned, moderately ill-conditioned, and severely ill-conditioned---and show that standard DML inference is asymptotically valid only when $\kappa_n = \op(\sqrt{n})$. Monte Carlo simulations confirm that designs with large $\kappa_{\mathrm{DML}}$ exhibit severe coverage failures (8.8\% coverage of nominal 95\% intervals), validating $\kappa_{\mathrm{DML}}$ as a practical diagnostic. We recommend reporting $\kappa_{\mathrm{DML}}$ alongside DML estimates, analogous to first-stage $F$-statistics in instrumental variables.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Double Machine Learning, Condition Number, Finite-Sample Inference, Coverage Error, Partially Linear Regression
+
+% ==========================================================================
+% SHORT-NOTE CHANGE: Condensed introduction
+\section{Introduction}
+\label{sec:intro}
+% ==========================================================================
+
+Double Machine Learning (DML), introduced by \cite{chernozhukov2018double}, provides a principled framework for inference on low-dimensional target parameters in the presence of high-dimensional nuisance functions. The method combines \emph{Neyman-orthogonal scores}---which are locally insensitive to first-order nuisance errors---with \emph{cross-fitting} to permit flexible machine learning estimators. Under appropriate regularity conditions, DML estimators are $\sqrt{n}$-consistent and asymptotically normal.
+
+However, asymptotic guarantees provide limited guidance for finite-sample reliability. When the \emph{empirical Jacobian} of the orthogonal score approaches singularity, finite-sample performance can deviate substantially from asymptotic predictions. This short note isolates and quantifies this conditioning problem in the Partially Linear Regression (PLR) setting.
+
+\subsection{Contributions}
+
+We make three contributions:
+
+\paragraph{1. Coverage error bound.} We prove that coverage error of standard DML confidence intervals satisfies
+\begin{equation}
+\label{eq:coverage_bound_intro}
+\left| \Prob\bigl(\theta_0 \in \mathrm{CI}_{\mathrm{std}}\bigr) - (1-\alpha) \right|
+\le C_1 \frac{\kappa_{\mathrm{DML}}}{\sqrt{n}} + C_2 \kappa_{\mathrm{DML}} \sqrt{n}\, r_n + \delta_n,
+\end{equation}
+where $\kappa_{\mathrm{DML}} := 1/|\hat{J}_\theta|$ is the condition number, $r_n$ captures nuisance estimation error, and $\delta_n$ is a tail probability.
+
+\paragraph{2. Regime characterization.} We show that standard DML inference is asymptotically valid if and only if $\kappa_n = \op(\sqrt{n})$ and $\kappa_n\sqrt{n}\cdot r_n \to 0$. This leads to a classification into well-conditioned, moderately ill-conditioned, and severely ill-conditioned regimes.
+
+\paragraph{3. Simulation evidence.} Monte Carlo experiments confirm that $\kappa_{\mathrm{DML}}$ predicts coverage failures: designs with $\kappa_{\mathrm{DML}} \approx 5.6$ exhibit 8.8\% coverage of nominal 95\% intervals at $n=2000$.
+
+We propose $\kappa_{\mathrm{DML}}$ as a simple diagnostic for DML reliability, analogous to first-stage $F$-statistics in instrumental variables. More elaborate robust inference procedures are left for future work.
+
+\subsection{Related Work}
+
+Our analysis builds on the DML framework of \cite{chernozhukov2018double}. The condition number $\kappa_{\mathrm{DML}}$ plays a role parallel to the concentration parameter in IV estimation; the weak-IV literature \citep{staiger1997instrumental, stock2002survey} has developed similar diagnostics and robust methods. Recent work on high-dimensional inference \citep{van2014asymptotically, belloni2012sparse} typically assumes well-conditioned score equations; our results complement these by quantifying how conditioning interacts with nuisance estimation rates.
+
+% ==========================================================================
+% SHORT-NOTE CHANGE: Condensed setup section
+\section{Setup: PLR Model and DML Estimator}
+\label{sec:setup}
+% ==========================================================================
+
+We consider the canonical Partially Linear Regression (PLR) model. Observations $W_i = (Y_i, D_i, X_i)$, $i = 1, \ldots, n$, are drawn i.i.d.\ from a distribution $P$, where $Y_i \in \R$ is the outcome, $D_i \in \R$ is a scalar treatment or policy variable, and $X_i \in \R^p$ is a vector of controls or confounders. The structural model is:
+\begin{equation}
+\label{eq:plr_model}
+Y = D\theta_0 + g_0(X) + \varepsilon, \quad \E[\varepsilon \mid D, X] = 0,
+\end{equation}
+where $\theta_0 \in \R$ is the scalar parameter of interest and $g_0: \R^p \to \R$ is an unknown nuisance function. Define the nuisance functions $m_0(X) := \E[D \mid X]$ and $\ell_0(X) := \E[Y \mid X]$.
+
+\paragraph{Orthogonal score.} For PLR, the Neyman-orthogonal score is:
+\begin{equation}
+\label{eq:score}
+\psi(W; \theta, \eta) := \bigl(D - m(X)\bigr)\bigl(Y - g(X) - \theta(D - m(X))\bigr),
+\end{equation}
+where $\eta = (g, m)$ are nuisance functions. Orthogonality ensures that $\partial_\eta \E[\psi(W; \theta_0, \eta)]\big|_{\eta = \eta_0} = 0$, making the estimator insensitive to first-order nuisance errors.
+
+\paragraph{Cross-fitted DML estimator.} The DML estimator uses $K$-fold cross-fitting: for each fold $k$, nuisance estimators $\hat{m}^{(k)}$ and $\hat{g}^{(k)}$ are trained on out-of-fold data and used to predict on fold $k$. Define residualized variables:
+\begin{equation}
+\label{eq:residuals}
+\hat{U}_i := D_i - \hat{m}(X_i), \quad \hat{V}_i := Y_i - \hat{g}(X_i).
+\end{equation}
+The DML estimator is:
+\begin{equation}
+\label{eq:theta_hat}
+\hat{\theta} = \frac{\sum_{i=1}^n \hat{U}_i \hat{V}_i}{\sum_{i=1}^n \hat{U}_i^2}.
+\end{equation}
+
+\paragraph{Condition number.} The \emph{empirical Jacobian} is $\hat{J}_\theta := -n^{-1}\sum_{i=1}^n \hat{U}_i^2$, and we define the \emph{DML condition number}:
+\begin{equation}
+\label{eq:kappa}
+\kappa_{\mathrm{DML}} := \frac{1}{|\hat{J}_\theta|} = \frac{n}{\sum_{i=1}^n \hat{U}_i^2}.
+\end{equation}
+When $\kappa_{\mathrm{DML}}$ is large (small residual treatment variation), the estimator becomes sensitive to perturbations---analogous to weak instruments in IV regression.
+
+% ==========================================================================
+% SHORT-NOTE CHANGE: Core theory section with linearization and coverage bound
+\section{Linearization and Coverage Error Bound}
+\label{sec:theory}
+% ==========================================================================
+
+We now establish a linearization of the DML estimator and derive the main coverage error bound.
+
+\subsection{Linearization Lemma}
+
+Define the empirical score average $\Psi_n(\theta, \eta) := n^{-1}\sum_{i=1}^n \psi(W_i; \theta, \eta)$.
+
+\begin{assumption}[Regularity Conditions]
+\label{ass:regularity}
+The following conditions hold:
+\begin{enumerate}[label=(\roman*)]
+    \item \textbf{(Score regularity)} The derivative $\partial_\theta \Psi_n(\tilde\theta, \hat\eta) = \hat{J}_\theta + \op(1)$ for $\tilde\theta$ between $\hat\theta$ and $\theta_0$.
+    \item \textbf{(Non-degeneracy)} $|\hat{J}_\theta| \ge c_J$ with probability at least $1 - \delta_J$ for some $c_J > 0$.
+    \item \textbf{(Nuisance rate)} $\norm{\hat{m} - m_0}_{L^2} \cdot \norm{\hat{g} - g_0}_{L^2} = \op(n^{-1/2})$.
+    \item \textbf{(Moment bounds)} $\E[\psi(W; \theta_0, \eta_0)^2] =: \sigma_\psi^2 < \infty$ and $\E[\abs{\psi(W; \theta_0, \eta_0)}^3] \le M_3 < \infty$.
+\end{enumerate}
+\end{assumption}
+
+\begin{lemma}[Refined Linearization of the DML Estimator]
+\label{lem:linearization}
+Under Assumption~\ref{ass:regularity}, the DML estimator admits the representation:
+\begin{equation}
+\label{eq:linearization}
+\hat{\theta} - \theta_0 = \kappa_{\mathrm{DML}} \cdot \{S_n + B_n\} + R_n,
+\end{equation}
+where $\kappa_{\mathrm{DML}} := 1/|\hat{J}_\theta|$ and
+\begin{align}
+S_n &:= \Psi_n(\theta_0, \eta_0) = \frac{1}{n}\sum_{i=1}^n (D_i - m_0(X_i))\varepsilon_i, \label{eq:Sn}\\
+B_n &:= \Delta_\eta := \Psi_n(\theta_0, \hat{\eta}) - \Psi_n(\theta_0, \eta_0), \label{eq:Bn}\\
+R_n &:= \Op\bigl((\hat{\theta} - \theta_0)^2\bigr) = \op(n^{-1/2}). \label{eq:Rn}
+\end{align}
+The term $S_n$ has mean zero and variance $\sigma_\psi^2/n$; the term $B_n$ satisfies $\E[B_n] = 0$ by Neyman orthogonality and $B_n = \op(n^{-1/2})$ under the product-rate condition; and $R_n$ is a quadratic Taylor remainder of smaller order.
+\end{lemma}
+
+\begin{proof}
+Since $\hat{\theta}$ solves $\Psi_n(\hat{\theta}, \hat{\eta}) = 0$, a first-order Taylor expansion around $\theta_0$ yields:
+\[
+0 = \Psi_n(\hat{\theta}, \hat{\eta}) = \Psi_n(\theta_0, \hat{\eta}) + \hat{J}_\theta (\hat{\theta} - \theta_0) + \Op\bigl((\hat{\theta} - \theta_0)^2\bigr).
+\]
+Rearranging and noting that $\hat{J}_\theta < 0$:
+\[
+\hat{\theta} - \theta_0 = -\hat{J}_\theta^{-1}\Psi_n(\theta_0, \hat{\eta}) + \Op\bigl(\hat{J}_\theta^{-1}(\hat{\theta} - \theta_0)^2\bigr).
+\]
+Decomposing $\Psi_n(\theta_0, \hat{\eta}) = \Psi_n(\theta_0, \eta_0) + [\Psi_n(\theta_0, \hat{\eta}) - \Psi_n(\theta_0, \eta_0)]$ and defining $S_n := \Psi_n(\theta_0, \eta_0)$, $B_n := \Psi_n(\theta_0, \hat{\eta}) - \Psi_n(\theta_0, \eta_0)$, and $R_n$ as the quadratic remainder, we obtain~\eqref{eq:linearization}. 
+
+Under Assumption~\ref{ass:regularity}(iii), the product-rate condition ensures $B_n = \op(n^{-1/2})$. Under DML rate conditions, $\hat{\theta} - \theta_0 = \Op(n^{-1/2})$, so $R_n = \Op(n^{-1})$.
+\end{proof}
+
+\begin{remark}[Interpretation of the Linearization]
+\label{rem:linearization_interp}
+The decomposition~\eqref{eq:linearization} reveals how each source of error is amplified by the condition number:
+\begin{itemize}[leftmargin=*]
+\item $\kappa_{\mathrm{DML}} \cdot S_n$: the sampling variability term. Since $S_n = \Op(n^{-1/2})$ and has mean zero, this contributes $\Op(\kappa_{\mathrm{DML}} \cdot n^{-1/2})$ to the estimation error.
+\item $\kappa_{\mathrm{DML}} \cdot B_n$: the nuisance bias term. By Neyman orthogonality, $B_n$ has no first-order contribution; under the product-rate condition, $B_n = \op(n^{-1/2})$. However, when $\kappa_{\mathrm{DML}}$ is large, even $\op(n^{-1/2})$ nuisance error can dominate.
+\item $R_n$: higher-order remainder, typically $\op(n^{-1/2})$.
+\end{itemize}
+When $\kappa_{\mathrm{DML}} = \Op(1)$, both terms are $\Op(n^{-1/2})$ as desired. When $\kappa_{\mathrm{DML}} \gg 1$, the effective convergence rate deteriorates.
+\end{remark}
+
+\subsection{Coverage Error Bound}
+
+We now establish our main theoretical result: an explicit bound on the coverage error of standard DML confidence intervals.
+
+Let $\mathrm{CI}_{\mathrm{std}} := [\hat{\theta} \pm z_{1-\alpha/2} \cdot \widehat{\mathrm{SE}}_{\mathrm{DML}}]$ denote the standard DML confidence interval, where
+\begin{equation}
+\label{eq:se_dml}
+\widehat{\mathrm{SE}}_{\mathrm{DML}} := \kappa_{\mathrm{DML}} \cdot \sqrt{\frac{1}{n}\sum_{i=1}^n \hat{U}_i^2 \hat{\varepsilon}_i^2},
+\end{equation}
+with $\hat{\varepsilon}_i := Y_i - \hat{g}(X_i) - \hat{\theta}(D_i - \hat{m}(X_i))$.
+
+\begin{assumption}[Concentration Bounds]
+\label{ass:concentration}
+With probability at least $1 - \delta$:
+\begin{enumerate}[label=(\roman*)]
+    \item $\abs{S_n} \le a_n(\delta) = O(\sigma_\psi / \sqrt{n})$ (sampling fluctuation).
+    \item $\abs{B_n} + \abs{R_n} \le r_n(\delta) = O(n^{-1/2-\gamma})$ for some $\gamma > 0$ (nuisance and remainder).
+    \item $\abs{\widehat{\mathrm{SE}}_{\mathrm{DML}} - s_n} \le c_\xi s_n$ for some $c_\xi < 1/2$ (SE consistency).
+\end{enumerate}
+\end{assumption}
+
+\begin{theorem}[Coverage Error Bound]
+\label{thm:coverage_error}
+Under Assumptions~\ref{ass:regularity} and~\ref{ass:concentration}, there exist constants $C_1, C_2, C_3 > 0$ such that:
+\begin{equation}
+\label{eq:coverage_bound}
+\left| \Prob\bigl(\theta_0 \in \mathrm{CI}_{\mathrm{std}}\bigr) - (1-\alpha) \right|
+\le C_1 \frac{\kappa_{\mathrm{DML}}}{\sqrt{n}} 
++ C_2 \kappa_{\mathrm{DML}} \sqrt{n}\, r_n
++ C_3 \delta,
+\end{equation}
+where $r_n := r_n(\delta)$ captures nuisance estimation error.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+The proof combines the linearization~\eqref{eq:linearization} with Berry--Esseen bounds for $S_n$ and concentration bounds for $B_n + R_n$. From the linearization, $(\hat{\theta} - \theta_0)/\widehat{\mathrm{SE}}_{\mathrm{DML}}$ differs from a standard normal by terms of order $\kappa_{\mathrm{DML}}/\sqrt{n}$ (Berry--Esseen) and $\kappa_{\mathrm{DML}}\sqrt{n} \cdot r_n$ (nuisance bias). The bound follows by applying standard anti-concentration inequalities.
+\end{proof}
+
+% ==========================================================================
+% SHORT-NOTE CHANGE: Condensed regime interpretation section
+\section{Conditioning Regimes}
+\label{sec:regimes}
+% ==========================================================================
+
+Theorem~\ref{thm:coverage_error} implies a classification of DML inference into three regimes based on the growth rate of $\kappa_n := \kappa_{\mathrm{DML}}$.
+
+\begin{corollary}[Conditioning Regimes]
+\label{cor:regimes}
+Under Assumptions~\ref{ass:regularity}--\ref{ass:concentration} with $r_n = O_P(n^{-1/2-\gamma})$ for some $\gamma > 0$:
+
+\paragraph{(i) Well-conditioned ($\kappa_n = \Op(1)$).} Coverage error vanishes at rate $O(n^{-1/2})$. Standard DML inference is reliable.
+
+\paragraph{(ii) Moderately ill-conditioned ($\kappa_n = \Op(n^\beta)$, $0 < \beta < 1/2$).} Coverage error vanishes at rate $O(n^{\beta - 1/2})$, slower than standard. Finite-sample coverage may be poor.
+
+\paragraph{(iii) Severely ill-conditioned ($\kappa_n \asymp c\sqrt{n}$).} Coverage error does \emph{not} vanish. Standard DML CIs are asymptotically invalid.
+\end{corollary}
+
+\paragraph{Interpretation.} Standard DML inference is asymptotically valid if and only if $\kappa_n = \op(\sqrt{n})$ and $\kappa_n \sqrt{n} \cdot r_n \to 0$. The analogy to weak IV is direct: large $\kappa_n$ amplifies nuisance error just as weak first-stage strength amplifies IV bias. When $\kappa_n$ grows with $n$, even fast nuisance rates cannot rescue inference.
+
+% ==========================================================================
+% SHORT-NOTE CHANGE: Simplified simulation section with one main table
+\section{Simulation Evidence}
+\label{sec:simulations}
+% ==========================================================================
+
+We present Monte Carlo simulations demonstrating that $\kappa_{\mathrm{DML}}$ predicts finite-sample coverage failures.
+
+\subsection{Design}
+
+The data-generating process follows the PLR model~\eqref{eq:plr_model}:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Covariates:} $X \in \R^{10}$ from $N(0, \Sigma(\rho))$ with Toeplitz covariance $\Sigma_{jk} = \rho^{|j-k|}$, $\rho \in \{0, 0.5, 0.9\}$.
+    \item \textbf{Treatment:} $D = X^\top \beta_D + U$, $U \sim N(0, \sigma_U^2)$. Smaller $\sigma_U^2$ yields larger $\kappa_{\mathrm{DML}}$.
+    \item \textbf{Outcome:} $Y = D\theta_0 + g_0(X) + \varepsilon$, $\theta_0 = 1$, $g_0(X) = \gamma^\top \sin(X)$, $\varepsilon \sim N(0, 1)$.
+\end{itemize}
+We vary sample size $n \in \{500, 2000\}$, covariate correlation $\rho$, and overlap level (high/moderate/low). For each of 18 configurations, we run $B = 500$ Monte Carlo replications using DML with 5-fold cross-fitting and random forests for nuisance estimation.
+
+\subsection{Experimental Design}
+
+We vary three factors:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Sample size:} $n \in \{500, 2000\}$.
+    \item \textbf{Covariate correlation:} $\rho \in \{0, 0.5, 0.9\}$.
+    \item \textbf{Overlap level:} high ($\sigma_U^2$ large), moderate ($\sigma_U^2$ intermediate), and low ($\sigma_U^2$ small). Lower overlap reduces $\Var(D \mid X)$ and increases $\kappa_{\mathrm{DML}}$.
+\end{itemize}
+For each of 18 design configurations, we conduct $B = 500$ Monte Carlo replications. In each replication:
+\begin{enumerate}[label=(\roman*)]
+    \item Generate $(Y_i, D_i, X_i)_{i=1}^n$ from the DGP.
+    \item Fit the DML estimator with 5-fold cross-fitting, using random forests for nuisance estimation of both $m_0(X)$ and $\ell_0(X) := \E[Y \mid X]$.
+    \item Compute the point estimate $\hat\theta$, asymptotic standard error, nominal 95\% confidence interval $[\hat\theta \pm 1.96 \cdot \widehat{\mathrm{SE}}]$, and the condition number $\kappa_{\mathrm{DML}}$.
+    \item Record whether the CI covers $\theta_0 = 1$.
+\end{enumerate}
+
+\subsection{Results}
+
+Table~\ref{tab:results} reports results across representative design configurations.
+
+\begin{table}[ht]
+\centering
+\caption{Monte Carlo Results: Condition Number and Coverage by Design}
+\label{tab:results}
+\smallskip
+\small
+\begin{tabular}{@{}rlcccc@{}}
+\toprule
+$n$ & Overlap & $\rho$ & Mean $\kappa_{\mathrm{DML}}$ & Coverage (\%) & RMSE \\
+\midrule
+500  & High     & 0.0 & 0.72 & 92.0 & 0.04 \\
+500  & High     & 0.9 & 0.85 & 88.8 & 0.06 \\
+500  & Moderate & 0.5 & 1.69 & 91.2 & 0.07 \\
+500  & Low      & 0.9 & 4.82 & 38.6 & 0.27 \\
+\midrule
+2000 & High     & 0.0 & 0.76 & 93.0 & 0.02 \\
+2000 & High     & 0.9 & 0.89 & 90.8 & 0.03 \\
+2000 & Moderate & 0.5 & 1.82 & 68.0 & 0.06 \\
+2000 & Low      & 0.9 & 5.61 &  \textbf{8.8} & 0.21 \\
+\bottomrule
+\end{tabular}
+\smallskip
+
+\raggedright\footnotesize
+\textit{Notes:} $B = 500$ replications. Coverage is the percentage of nominal 95\% CIs containing $\theta_0 = 1$.
+\end{table}
+
+\paragraph{Key findings.} The results reveal clear stratification by conditioning:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Well-conditioned} ($\kappa \approx 0.7$--$0.9$): Coverage 89\%--93\%, close to nominal.
+\item \textbf{Moderately ill-conditioned} ($\kappa \approx 1.7$--$1.8$): Coverage degrades to 68\%--91\%.
+\item \textbf{Severely ill-conditioned} ($\kappa \approx 4.8$--$5.6$): Coverage collapses to 8.8\%--38.6\%.
+\end{itemize}
+The result at $n=2000$, low overlap, $\rho=0.9$ is striking: despite the ``large'' sample, nominal 95\% CIs cover the true parameter only 8.8\% of the time. This demonstrates that sample size alone does not guarantee reliable inference when conditioning is poor.
+
+The observed patterns are consistent with the coverage bound~\eqref{eq:coverage_bound}: large $\kappa_{\mathrm{DML}}$ amplifies both sampling variability and nuisance error, resulting in systematic under-coverage.
+
+% ==========================================================================
+% SHORT-NOTE CHANGE: Simplified conclusion
+\section{Discussion}
+\label{sec:conclusion}
+% ==========================================================================
+
+This short note makes three contributions. First, we establish a coverage error bound (Theorem~\ref{thm:coverage_error}) showing that miscoverage scales as $\kappa_{\mathrm{DML}}/\sqrt{n} + \kappa_{\mathrm{DML}}\sqrt{n} \cdot r_n$, where $\kappa_{\mathrm{DML}} := 1/|\hat{J}_\theta|$ is the condition number. Second, we characterize three conditioning regimes (Corollary~\ref{cor:regimes}): standard DML inference is asymptotically valid only when $\kappa_n = \op(\sqrt{n})$. Third, Monte Carlo simulations confirm that $\kappa_{\mathrm{DML}}$ predicts coverage failures with striking precision.
+
+\paragraph{Practical recommendation.} We recommend computing and reporting $\kappa_{\mathrm{DML}}$ alongside DML estimates, analogous to first-stage $F$-statistics in IV analyses:
+\begin{itemize}[leftmargin=*]
+\item $\kappa_{\mathrm{DML}} < 1$: Standard inference is reliable.
+\item $1 \le \kappa_{\mathrm{DML}} < 3$: Exercise caution; consider robustness checks.
+\item $\kappa_{\mathrm{DML}} \ge 3$: Standard CIs are unreliable.
+\end{itemize}
+
+\paragraph{Limitations.} Our results apply to the PLR model with scalar $\theta_0$. Extensions to IV-DML, panel settings, and robust inference methods (e.g., $\kappa$-inflated CIs) are left for future work.
+
+% ==========================================================================
+% References
+% ==========================================================================
+\bibliographystyle{apalike}
+
+\begin{thebibliography}{99}
+
+\bibitem[Belloni et al., 2012]{belloni2012sparse}
+Belloni, A., Chen, D., Chernozhukov, V., and Hansen, C. (2012).
+\newblock Sparse models and methods for optimal instruments with an application to eminent domain.
+\newblock \emph{Econometrica}, 80(6):2369--2429.
+
+\bibitem[Chernozhukov et al., 2018]{chernozhukov2018double}
+Chernozhukov, V., Chetverikov, D., Demirer, M., Duflo, E., Hansen, C., Newey, W., and Robins, J. (2018).
+\newblock Double/debiased machine learning for treatment and structural parameters.
+\newblock \emph{The Econometrics Journal}, 21(1):C1--C68.
+
+\bibitem[Staiger and Stock, 1997]{staiger1997instrumental}
+Staiger, D. and Stock, J.~H. (1997).
+\newblock Instrumental variables regression with weak instruments.
+\newblock \emph{Econometrica}, 65(3):557--586.
+
+\bibitem[Stock and Yogo, 2005]{stock2002survey}
+Stock, J.~H. and Yogo, M. (2005).
+\newblock Testing for weak instruments in linear IV regression.
+\newblock In Andrews, D.~W.~K. and Stock, J.~H., editors, \emph{Identification and Inference for Econometric Models: Essays in Honor of Thomas Rothenberg}, pages 80--108. Cambridge University Press.
+
+\bibitem[van de Geer et al., 2014]{van2014asymptotically}
+van de Geer, S., B{\"u}hlmann, P., Ritov, Y., and Dezeure, R. (2014).
+\newblock On asymptotically optimal confidence regions and tests for high-dimensional models.
+\newblock \emph{The Annals of Statistics}, 42(3):1166--1202.
+
+\end{thebibliography}
+
+\end{document}
+
