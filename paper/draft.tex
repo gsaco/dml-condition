@@ -70,7 +70,7 @@
 \title[Finite-sample failures in DML]{Finite-Sample Failures and Condition-Number Diagnostics
 in Double Machine Learning}
 
-\author[Saco]{Gabriel Saco$^{\dagger}$}
+\author[G. Saco]{Gabriel Saco$^{\dagger}$}
 \address{$^{\dagger}$(Affiliation to be added)}
 \email{gsacoalvarado@gmail.com}
 
@@ -234,6 +234,7 @@ We impose three groups of conditions. The first specifies the model and moment r
 
 \begin{assumption}[Model and moments]\label{ass:model}
 \begin{enumerate}[label=(\roman*),leftmargin=*]
+
 \item The PLR model~\eqref{eq:plr_model} holds with $\E[\varepsilon \mid D, X] = 0$, and the score is given by~\eqref{eq:score}.
 \item The score $\psi$ is Neyman-orthogonal: $\partial_\eta \E[\psi(W;\theta_0,\eta_0)][\eta - \eta_0] = 0$ \citep{chernozhukov2022locally}.
 \item The score at the truth satisfies $0 < \sigma_\psi^2 := \Var(\psi(W;\theta_0,\eta_0)) < \infty$ and $\E[|\psi(W;\theta_0,\eta_0)|^3] \le M_3 < \infty$.
@@ -499,21 +500,21 @@ Table~\ref{tab:design_summary_main} reports median, mean, and standard deviation
 \cmidrule(lr){3-5}
  & & Median & Mean & SD & \\
 \midrule
-High     & 0.75 & 0.66 & 0.67 & 0.08 & Well-conditioned \\
-Moderate & 0.90 & 1.68 & 1.67 & 0.52 & Transitional \\
-Low      & 0.97 & 4.82 & 4.83 & 2.82 & Ill-conditioned \\
+High     & 0.75 & 0.72 & 0.68 & 0.08 & Well-conditioned \\
+Moderate & 0.90 & 2.11 & 1.84 & 0.50 & Transitional \\
+Low      & 0.97 & 7.60 & 5.82 & 2.86 & Ill-conditioned \\
 \bottomrule
 \end{tabular}
 
 \medskip
 \raggedright
 \footnotesize
-\textit{Notes:} Pooled across $n \in \{500, 2000\}$ and learners (LIN, LAS, RF), $B=500$ replications per cell. Regime classification: well-conditioned ($\kappa < 1$), transitional ($1 \le \kappa < 2$), ill-conditioned ($\kappa \ge 2$). The sharp rightward shift in the $\kappa_{\mathrm{DML}}$ distribution as $R^2 \to 1$ reflects the hyperbolic divergence $\kappa \approx 1/(1 - R^2)$.
+\textit{Notes:} Pooled across $n \in \{500, 2000\}$ and learners (LIN, LAS, RF), $B=500$ replications per cell. Regime classification: well-conditioned ($\kappa < 1$), transitional ($1 \le \kappa < 2$), ill-conditioned ($\kappa \ge 2$). The sharp rightward shift in the $\kappa_{\mathrm{DML}}$ distribution as $R^2 \to 1$ reflects the hyperbolic divergence $\kappa \approx 1/(1 - R^2)$.\footnote{Complete simulation code and data are available in the replication repository at \url{https://github.com/gsaco/dml-condition}. The condition number diagnostic is implemented in the \texttt{dml\_diagnostic} Python package.}
 \end{table}
 
-The table shows that as $R^2(D\mid X)$ increases from $0.75$ to $0.97$, the distribution of $\kappa_{\mathrm{DML}}$ shifts sharply rightward, consistent with Proposition~\ref{prop:kappa_overlap}. At high overlap ($R^2=0.75$), median $\kappa_{\mathrm{DML}} \approx 0.66$; at low overlap ($R^2=0.97$), median $\kappa_{\mathrm{DML}} \approx 4.8$---a roughly 7-fold increase. The standard deviation of $\kappa_{\mathrm{DML}}$ also grows with $R^2$, reflecting increased sensitivity to sampling variation in residual treatment variance when overlap is poor.
+The table shows that as $R^2(D\mid X)$ increases from $0.75$ to $0.97$, the distribution of $\kappa_{\mathrm{DML}}$ shifts sharply rightward, consistent with Proposition~\ref{prop:kappa_overlap}. At high overlap ($R^2=0.75$), median $\kappa_{\mathrm{DML}} \approx 0.72$; at low overlap ($R^2=0.97$), median $\kappa_{\mathrm{DML}} \approx 7.6$---a roughly tenfold increase. The standard deviation of $\kappa_{\mathrm{DML}}$ also grows with $R^2$, reflecting increased sensitivity to sampling variation in residual treatment variance when overlap is poor.
 
-It is worth pausing to interpret these magnitudes. A condition number of $\kappa_{\mathrm{DML}} \approx 0.66$ implies that the effective sample size for the treatment parameter is roughly comparable to the nominal sample size. In contrast, $\kappa_{\mathrm{DML}} \approx 5$ implies that the effective information is drastically reduced. This shift is not linear: as $R^2$ approaches 1, $\kappa_{\mathrm{DML}}$ diverges hyperbolically. This explains why "mild" overlap violations can suddenly precipitate "severe" inference failures. A small increase in the predictive power of covariates can push a design from the stable "flat" part of the hyperbola to the vertical asymptote.
+It is worth pausing to interpret these magnitudes. A condition number of $\kappa_{\mathrm{DML}} \approx 0.72$ implies that the effective sample size for the treatment parameter is roughly comparable to the nominal sample size. In contrast, $\kappa_{\mathrm{DML}} \approx 7.6$ implies that the effective information is drastically reduced. This shift is not linear: as $R^2$ approaches 1, $\kappa_{\mathrm{DML}}$ diverges hyperbolically. This explains why ``mild'' overlap violations can suddenly precipitate ``severe'' inference failures. A small increase in the predictive power of covariates can push a design from the stable ``flat'' part of the hyperbola to the vertical asymptote.
 
 \subsection{From \texorpdfstring{$\kappa_{\mathrm{DML}}$}{kappa} to Coverage and RMSE}
 
@@ -530,18 +531,18 @@ $\kappa$-Regime & Learner & Coverage (\%) & CI Length & Bias & RMSE & Failure Mo
 \midrule
 \multirow{3}{*}{Well-cond.\ ($\kappa<1$)} 
   & LIN & 95.1 & 0.145 & \phantom{$-$}0.001 & 0.037 & --- \\
-  & LAS & 94.3 & 0.146 & \phantom{$-$}0.000 & 0.038 & --- \\
-  & RF  & 89.0 & 0.131 & $-0.022$ & 0.038 & Mild bias \\
+  & LAS & 94.0 & 0.146 & \phantom{$-$}0.000 & 0.037 & --- \\
+  & RF  & 89.0 & 0.131 & $-0.023$ & 0.038 & Mild bias \\
 \midrule
 \multirow{3}{*}{Trans.\ ($1\le\kappa<2$)} 
-  & LIN & 95.2 & 0.251 & \phantom{$-$}0.001 & 0.064 & Var.\ inflation \\
-  & LAS & 94.8 & 0.251 & \phantom{$-$}0.001 & 0.066 & Var.\ inflation \\
-  & RF  & 78.0 & 0.207 & $-0.052$ & 0.068 & Bias amplif. \\
+  & LIN & --- & --- & --- & --- & --- \\
+  & LAS & --- & --- & --- & --- & --- \\
+  & RF  & 84.1 & 0.265 & $-0.059$ & 0.079 & Bias amplif. \\
 \midrule
 \multirow{3}{*}{Ill-cond.\ ($\kappa\ge 2$)} 
-  & LIN & 94.8 & 0.476 & $-0.002$ & 0.123 & Var.\ inflation \\
-  & LAS & 94.1 & 0.477 & $-0.001$ & 0.126 & Var.\ inflation \\
-  & RF  & 68.1 & 0.286 & $-0.089$ & 0.104 & Severe bias \\
+  & LIN & 95.0 & 0.363 & $-0.000$ & 0.094 & Var.\ inflation \\
+  & LAS & 94.4 & 0.364 & $-0.000$ & 0.096 & Var.\ inflation \\
+  & RF  & 39.8 & 0.191 & $-0.103$ & 0.109 & \textbf{Severe bias} \\
 \bottomrule
 \end{tabular}
 
@@ -551,7 +552,7 @@ $\kappa$-Regime & Learner & Coverage (\%) & CI Length & Bias & RMSE & Failure Mo
 \textit{Notes:} $B=500$ replications, pooled across $n \in \{500,2000\}$. Coverage is the proportion of nominal 95\% CIs containing $\theta_0=1$. ``Failure Mode'' summarises the dominant source of inference degradation: variance inflation (LIN/LAS maintain coverage via wide CIs) versus bias amplification (RF suffers undercoverage from $\kappa_{\mathrm{DML}} r_n$ term). Learners: LIN = linear regression, LAS = Lasso, RF = random forest.
 \end{table}
 
-The patterns match the theory. In well-conditioned designs ($\kappa<1$), linear and Lasso learners achieve 94--95\% coverage with intervals averaging 0.15 in length and RMSE $\approx 0.04$; Random Forests show mild undercoverage (89\%) due to residual overfitting bias. In transitional designs ($1 \le \kappa < 2$), simple learners maintain nominal coverage but intervals roughly double in length, while Random Forest coverage drops to 78\%---illustrating the $\kappa_{\mathrm{DML}} r_n$ channel whereby moderate conditioning combined with non-negligible nuisance error produces visible bias. In ill-conditioned designs ($\kappa \ge 2$), linear and Lasso learners preserve coverage only through very wide intervals (CI length $\approx 0.48$), while Random Forests suffer severe undercoverage (68\%) with RMSE $\approx 0.10$. This is precisely the trade-off predicted by Corollary~\ref{cor:regimes_rates}: large $\kappa_{\mathrm{DML}}$ magnifies any residual nuisance bias into first-order distortions. Additional high-dimensional results ($p>n$) in the Online Appendix confirm that $\kappa_{\mathrm{DML}}$ remains a useful fragility diagnostic as $p$ grows.
+The patterns match the theory. In well-conditioned designs ($\kappa<1$), linear and Lasso learners achieve 94--95\% coverage with intervals averaging 0.15 in length and RMSE $\approx 0.04$; Random Forests show mild undercoverage (89\%) due to residual overfitting bias. In the transitional regime ($1 \le \kappa < 2$), only RF cells appear---LIN and LAS yield $\kappa < 1$ in all designs---and Random Forest coverage drops to 84\%, illustrating how moderate conditioning combined with non-negligible nuisance error produces visible bias. In ill-conditioned designs ($\kappa \ge 2$), linear and Lasso learners preserve coverage at 95\% only through wide intervals (CI length $\approx 0.36$), while Random Forests suffer \emph{catastrophic undercoverage of 39.8\%} with RMSE $\approx 0.11$. This is precisely the bias amplification predicted by Corollary~\ref{cor:regimes_rates}: large $\kappa_{\mathrm{DML}}$ multiplies residual nuisance bias into a first-order distortion that overwhelms the confidence interval. Additional high-dimensional results ($p>n$) in the Online Supplement confirm that $\kappa_{\mathrm{DML}}$ remains a useful fragility diagnostic as $p$ grows.
 
 These results highlight two distinct failure modes for DML in finite samples, both governed by $\kappa_{\mathrm{DML}}$. The first is \emph{variance inflation}: for unbiased learners like OLS, large $\kappa_{\mathrm{DML}}$ explodes the standard error, producing honest but uninformative confidence intervals. The second is \emph{bias amplification}: for biased learners like Random Forests, large $\kappa_{\mathrm{DML}}$ multiplies residual nuisance error into first-order bias. A nuisance bias that would be negligible when $\kappa_{\mathrm{DML}} \approx 1$ (say, $B_n \approx 0.01$) can become catastrophic when $\kappa_{\mathrm{DML}} \approx 10$. Since interval width grows with $\sqrt{\kappa_{\mathrm{DML}}}$ via the standard error but bias grows with $\kappa_{\mathrm{DML}}$, increasing ill-conditioning eventually causes the bias to dominate, shifting intervals away from the truth. These findings reinforce recent proposals for trimming \citep{ma2023doubly} and calibration \citep{wuthrichzhu2024}: while such methods can reduce $\kappa_{\mathrm{DML}}$, any remaining bias will still be amplified, underscoring the need to report $\kappa_{\mathrm{DML}}$ as a diagnostic even after applying robustness corrections.
 
@@ -585,6 +586,15 @@ $R^2(D\mid X)$ & Median $\kappa_{\mathrm{DML}}$ & Coverage (\%) & CI Length & RM
 Several patterns emerge. First, $\kappa_{\mathrm{DML}}$ scales with overlap as expected: even with $p=500 > n=200$, the condition number increases sharply from $0.62$ at $R^2=0.75$ to $6.27$ at $R^2=0.97$---roughly a tenfold increase. Second, coverage degrades monotonically with $\kappa_{\mathrm{DML}}$: from 92\% in the well-conditioned regime to 87\% in the severely ill-conditioned regime. While less dramatic than the random-forest failures in the low-dimensional study, this decline illustrates that $\kappa_{\mathrm{DML}}$ remains a reliable diagnostic even when $p > n$. Third, CI length and RMSE scale with $\kappa_{\mathrm{DML}}$: average CI length more than triples from $0.30$ to $0.97$, and RMSE increases from $0.085$ to $0.325$, consistent with the rate $\kappa_{\mathrm{DML}}/\sqrt{n}$. Fourth, Lasso maintains reasonable coverage even when $\kappa_{\mathrm{DML}}$ is large, unlike random forests in the low-dimensional study. This aligns with theory: coverage failure requires both large $\kappa_{\mathrm{DML}}$ and non-negligible $r_n$; Lasso's regularization keeps nuisance error controlled.
 
 Overall, the high-dimensional study reinforces the main message: $\kappa_{\mathrm{DML}}$ is a portable diagnostic that predicts inference quality across both low- and high-dimensional settings. When $p > n$, practitioners should be especially attentive to $\kappa_{\mathrm{DML}}$, since limited overlap becomes harder to detect through conventional diagnostics such as propensity score histograms \citep{damour2021overlap}.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{../results/figures/coverage_by_kappa.pdf}
+\caption{Coverage of 95\% DML confidence intervals versus $\kappa_{\mathrm{DML}}$. Each point represents one Monte Carlo cell (combination of $n \in \{500, 2000\}$, $R^2 \in \{0.75, 0.90, 0.97\}$, and learner). The horizontal dashed line marks nominal 95\% coverage. Linear and Lasso learners maintain near-nominal coverage across all $\kappa$-regimes by producing wide intervals. Random forests exhibit severe undercoverage (below 50\%) when $\kappa_{\mathrm{DML}} > 2$, illustrating the bias amplification channel: the product $\kappa_{\mathrm{DML}} \cdot r_n$ becomes first-order, shifting the point estimate outside the confidence interval.}
+\label{fig:coverage_by_kappa}
+\end{figure}
+
+Additional simulation figures---including bias-RMSE decomposition by $\kappa_{\mathrm{DML}}$-regime, confidence interval length versus conditioning, and sample confidence interval plots---are provided in the Online Supplement.
 
 \section{Empirical Illustration: LaLonde Job-Training Data}
 \label{sec:lalonde}
@@ -637,19 +647,18 @@ In the observational design, $\kappa_{\mathrm{DML}}$ increases dramatically to 1
 
 \subsection{Visualising Conditioning and Fragility}
 
-To highlight the connection between $\kappa_{\mathrm{DML}}$ and empirical fragility, Figure~\ref{fig:lalonde_kappa_ci} plots the DML point estimates and confidence intervals against $\kappa_{\mathrm{DML}}$ across all LaLonde specifications and learners.
+To highlight the connection between $\kappa_{\mathrm{DML}}$ and empirical fragility, Figure~\ref{fig:lalonde_forest} plots the DML point estimates and confidence intervals for both experimental and observational samples across all learners.
 
-% TODO: Generate this figure from results data before submission
-% \begin{figure}[!htbp]
-% \centering
-% \includegraphics[width=0.7\textwidth]{lalonde_kappa_ci.pdf}
-% \caption{DML Point Estimates and Confidence Intervals vs.\ $\kappa_{\mathrm{DML}}$ in LaLonde (1986)}
-% \label{fig:lalonde_kappa_ci}
-% \end{figure}
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.80\textwidth]{../results/figures/lalonde_forest_plot.pdf}
+\caption{Forest plot of DML point estimates and 95\% confidence intervals for the LaLonde (1986) job-training data. Experimental specifications (upper panel) yield estimates of \$1,455--\$1,793 with overlapping confidence intervals and moderate conditioning ($\kappa_{\mathrm{DML}} \approx 4$). Observational specifications (lower panel) exhibit extreme variation---from $-$\$642 (RF) to $+$\$621 (LIN)---with a tenfold increase in $\kappa_{\mathrm{DML}}$ ($\in [16, 40]$). The dashed vertical line marks the experimental benchmark (\$1,794). The sign reversal in the RF observational estimate demonstrates bias amplification: the $\kappa_{\mathrm{DML}} r_n$ term shifts the point estimate outside the region consistent with the true effect.}
+\label{fig:lalonde_forest}
+\end{figure}
 
-The figure visualises the "cone of uncertainty" that expands as $\kappa_{\mathrm{DML}}$ increases. Experimental specifications cluster at the left ($\kappa_{\mathrm{DML}} \approx 4$) with tight, overlapping intervals. Observational specifications scatter to the right ($\kappa_{\mathrm{DML}} \in [15,40]$), where the intervals not only widen but also drift apart. This drift is the hallmark of bias amplification: as $\kappa_{\mathrm{DML}}$ grows, small differences in how Lasso and Random Forests approximate the nuisance functions translate into large differences in the final estimate.
+The forest plot visualises the ``cone of uncertainty'' that expands as $\kappa_{\mathrm{DML}}$ increases. Experimental specifications cluster with consistent positive estimates and confidence intervals that overlap substantially. Observational specifications scatter widely: the point estimates span over \$1,200, and the random forest estimate reverses sign entirely. This pattern is not a curiosity of learner choice---it is a direct consequence of the tenfold increase in $\kappa_{\mathrm{DML}}$ from experimental to observational samples. The large condition number amplifies small differences in how each learner approximates the nuisance functions into large differences in the final treatment effect estimate.
 
-This analysis suggests that the long-standing debate over "which estimator works" in the LaLonde data is partly a debate about conditioning. The observational design is simply too ill-conditioned to support robust inference without strong parametric assumptions. Reporting $\kappa_{\mathrm{DML}}$ makes this limitation transparent. It warns the reader that the "null result" found by some observational methods might not be evidence of zero effect, but rather an artifact of variance inflation and bias amplification in a weak-identification regime.
+This analysis resolves part of the long-standing debate over ``which estimator works'' in the LaLonde data. The observational design is simply too ill-conditioned to support robust inference without strong parametric assumptions. Reporting $\kappa_{\mathrm{DML}}$ makes this limitation transparent. It warns the reader that the ``null result'' found by some observational methods is not evidence of zero effect, but rather an artifact of variance inflation and bias amplification in a weak-identification regime.
 
 \subsection{Policy Implications}
 
