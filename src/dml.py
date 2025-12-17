@@ -29,7 +29,7 @@ from sklearn.base import BaseEstimator, clone
 from sklearn.model_selection import KFold
 
 if TYPE_CHECKING:
-    from src.dgp import NonLinearDGP
+    from src.dgp import DGP
     from src.learners import OracleLearner
 
 
@@ -64,6 +64,11 @@ class DMLResult:
         Upper bound of 95% CI.
     kappa_star : float
         Standardized condition number κ* = 1 / (1 - R²(D|X)).
+        This is computed from the learner-estimated residuals.
+    structural_kappa : float
+        Structural κ* computed from true/Oracle residuals.
+        Used for Corrupted Oracle analysis where learner residuals are contaminated.
+        Equal to kappa_star when no true values are provided.
     bias : float
         Estimated bias = θ̂ - θ₀.
     nuisance_mse_m : float
@@ -80,6 +85,7 @@ class DMLResult:
     ci_lower: float
     ci_upper: float
     kappa_star: float
+    structural_kappa: float
     bias: float
     nuisance_mse_m: float
     nuisance_mse_l: float
@@ -107,6 +113,29 @@ class DMLResult:
         """Check if CI covers true parameter."""
         return self.ci_lower <= theta0 <= self.ci_upper
     
+    @property
+    def effective_sample_size(self) -> float:
+        """Effective sample size N_eff = n / κ* (from main.tex Section 4.2)."""
+        if self.kappa_star > 0 and self.kappa_star < np.inf:
+            return self.n / self.kappa_star
+        return 0.0
+    
+    @property
+    def conditioning_regime(self) -> str:
+        """
+        Conditioning regime classification (from main.tex Definition 4.1).
+        
+        - Well-conditioned: κ* < 5
+        - Moderately ill-conditioned: 5 ≤ κ* ≤ 20
+        - Severely ill-conditioned: κ* > 20
+        """
+        if self.kappa_star < 5:
+            return "well-conditioned"
+        elif self.kappa_star <= 20:
+            return "moderately ill-conditioned"
+        else:
+            return "severely ill-conditioned"
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -116,6 +145,7 @@ class DMLResult:
             'ci_upper': self.ci_upper,
             'ci_length': self.ci_length,
             'kappa_star': self.kappa_star,
+            'structural_kappa': self.structural_kappa,
             'bias': self.bias,
             'nuisance_mse_m': self.nuisance_mse_m,
             'nuisance_mse_l': self.nuisance_mse_l,
@@ -123,6 +153,8 @@ class DMLResult:
             'rmse_l': self.rmse_l,
             'sample_r2': self.sample_r2,
             'n': self.n,
+            'effective_sample_size': self.effective_sample_size,
+            'conditioning_regime': self.conditioning_regime,
         }
 
 
@@ -184,7 +216,7 @@ class DMLEstimator:
         m0_X: Optional[NDArray],
         ell0_X: Optional[NDArray],
         split_seed: int,
-    ) -> Tuple[float, float, float, float, float]:
+    ) -> Tuple[float, float, float, float, float, float]:
         """
         Perform a single cross-fitting iteration.
         
@@ -193,6 +225,7 @@ class DMLEstimator:
         theta_hat : float
         var_hat : float
         kappa_star : float
+        structural_kappa : float
         mse_m : float
         mse_l : float
         """
@@ -227,7 +260,7 @@ class DMLEstimator:
         sum_V_sq = np.sum(V_hat ** 2)
         
         if sum_V_sq < 1e-12:
-            return np.nan, np.nan, np.inf, np.nan, np.nan
+            return np.nan, np.nan, np.inf, np.inf, np.nan, np.nan
         
         theta_hat = np.sum(V_hat * U_hat) / sum_V_sq
         
@@ -254,7 +287,21 @@ class DMLEstimator:
         else:
             mse_l = np.nan
         
-        return theta_hat, var_hat, kappa_star, mse_m, mse_l
+        # Structural kappa: computed from TRUE residuals (if m0_X provided)
+        # This is essential for Corrupted Oracle analysis where learner residuals
+        # are contaminated by injected bias
+        if m0_X is not None:
+            V_true = D - m0_X  # True treatment residual
+            sum_V_true_sq = np.sum(V_true ** 2)
+            if sum_V_true_sq > 1e-12:
+                structural_kappa = (n * var_D) / sum_V_true_sq
+            else:
+                structural_kappa = np.inf
+        else:
+            # When no true values, structural_kappa equals kappa_star
+            structural_kappa = kappa_star
+        
+        return theta_hat, var_hat, kappa_star, structural_kappa, mse_m, mse_l
     
     def fit(
         self,
@@ -289,7 +336,7 @@ class DMLEstimator:
         
         if self.n_repeats == 1:
             # Single cross-fitting
-            theta_hat, var_hat, kappa_star, mse_m, mse_l = self._single_crossfit(
+            theta_hat, var_hat, kappa_star, structural_kappa, mse_m, mse_l = self._single_crossfit(
                 Y, D, X, m0_X, ell0_X, self.random_state
             )
             se = np.sqrt(var_hat)
@@ -298,17 +345,19 @@ class DMLEstimator:
             theta_hats = []
             var_hats = []
             kappa_stars = []
+            structural_kappas = []
             mse_ms = []
             mse_ls = []
             
             for rep in range(self.n_repeats):
                 split_seed = self.random_state + rep * 1000
-                th, vh, ks, mm, ml = self._single_crossfit(
+                th, vh, ks, sk, mm, ml = self._single_crossfit(
                     Y, D, X, m0_X, ell0_X, split_seed
                 )
                 theta_hats.append(th)
                 var_hats.append(vh)
                 kappa_stars.append(ks)
+                structural_kappas.append(sk)
                 mse_ms.append(mm)
                 mse_ls.append(ml)
             
@@ -323,6 +372,7 @@ class DMLEstimator:
             se = np.sqrt(var_hat)
             
             kappa_star = np.nanmedian(kappa_stars)
+            structural_kappa = np.nanmedian(structural_kappas)
             mse_m = np.nanmedian(mse_ms)
             mse_l = np.nanmedian(mse_ls)
         
@@ -343,6 +393,7 @@ class DMLEstimator:
             ci_lower=ci_lower,
             ci_upper=ci_upper,
             kappa_star=kappa_star,
+            structural_kappa=structural_kappa,
             bias=bias,
             nuisance_mse_m=mse_m,
             nuisance_mse_l=mse_l,

@@ -21,7 +21,7 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LassoCV, LinearRegression
+from sklearn.linear_model import LassoCV, LinearRegression, RidgeCV
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import make_pipeline
@@ -29,7 +29,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 if TYPE_CHECKING:
-    from src.dgp import NonLinearDGP
+    from src.dgp import DGP
 
 
 # =============================================================================
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 # =============================================================================
 
 LEARNER_NAMES = Literal[
-    "OLS", "Lasso", "RF", "RF_Tuned", "MLP", "Oracle", "CorruptedOracle"
+    "OLS", "Lasso", "Ridge", "RF", "RF_Tuned", "GBM", "MLP", "Oracle", "CorruptedOracle"
 ]
 
 RF_PARAM_GRID: Dict[str, Any] = {
@@ -57,7 +57,7 @@ class OracleLearner(BaseEstimator, RegressorMixin):
     """
     Oracle learner that returns true nuisance function values.
     
-    This learner accepts a NonLinearDGP object and, when fit() is called,
+    This learner accepts a DGP object and, when fit() is called,
     simply stores the true m₀(X) or ℓ₀(X) values. When predict() is called,
     it returns the stored true values.
     
@@ -67,7 +67,7 @@ class OracleLearner(BaseEstimator, RegressorMixin):
     
     Parameters
     ----------
-    dgp : NonLinearDGP
+    dgp : DGP
         The data generating process object.
     target : str, default 'm'
         Which nuisance function to return: 'm' for m₀(X), 'l' for ℓ₀(X).
@@ -82,7 +82,7 @@ class OracleLearner(BaseEstimator, RegressorMixin):
     
     def __init__(
         self,
-        dgp: Optional["NonLinearDGP"] = None,
+        dgp: Optional["DGP"] = None,
         target: Literal['m', 'l'] = 'm'
     ) -> None:
         self.dgp = dgp
@@ -232,7 +232,7 @@ class CorruptedOracle(BaseEstimator, RegressorMixin):
 
 
 def get_corrupted_oracle_pair(
-    dgp: "NonLinearDGP",
+    dgp: "DGP",
     bias_m: float = 0.01,
     bias_l: float = 0.01,
 ) -> tuple[CorruptedOracle, CorruptedOracle]:
@@ -241,7 +241,7 @@ def get_corrupted_oracle_pair(
     
     Parameters
     ----------
-    dgp : NonLinearDGP
+    dgp : DGP
         The data generating process.
     bias_m : float, default 0.01
         Bias to add to m₀(X).
@@ -268,7 +268,7 @@ def get_corrupted_oracle_pair(
 def get_learner(
     name: LEARNER_NAMES,
     tuned: bool = False,
-    dgp: Optional["NonLinearDGP"] = None,
+    dgp: Optional["DGP"] = None,
     random_state: int = 42,
     n_jobs: int = -1,
     params: Optional[Dict[str, Any]] = None,
@@ -283,7 +283,7 @@ def get_learner(
     tuned : bool, default False
         For backward compatibility. If True and name is 'RF',
         will return the tuned variant.
-    dgp : NonLinearDGP or None, default None
+    dgp : DGP or None, default None
         Required for Oracle learner.
     random_state : int, default 42
         Random state for reproducibility.
@@ -325,6 +325,13 @@ def get_learner(
             n_jobs=n_jobs,
         )
     
+    elif name_upper == 'RIDGE':
+        # Ridge regression with built-in cross-validation
+        return RidgeCV(
+            cv=5,
+            fit_intercept=True,
+        )
+    
     elif name_upper == 'RF':
         # Fast RF with sensible fixed hyperparameters (no tuning overhead)
         # Good defaults from empirical studies: max_depth=15, min_samples_leaf=5
@@ -363,6 +370,16 @@ def get_learner(
         )
     
 
+    elif name_upper == 'GBM':
+        # Gradient Boosting with sklearn's HistGradientBoostingRegressor
+        # Faster than traditional GradientBoostingRegressor, handles missing values
+        from sklearn.ensemble import HistGradientBoostingRegressor
+        return HistGradientBoostingRegressor(
+            max_iter=100,
+            max_depth=4,
+            learning_rate=0.1,
+            random_state=random_state,
+        )
     
     elif name_upper == 'MLP':
         return make_pipeline(
@@ -399,14 +416,14 @@ def get_learner(
 
 
 def get_oracle_pair(
-    dgp: "NonLinearDGP"
+    dgp: "DGP"
 ) -> tuple[OracleLearner, OracleLearner]:
     """
     Get a pair of Oracle learners for both nuisance functions.
     
     Parameters
     ----------
-    dgp : NonLinearDGP
+    dgp : DGP
         The data generating process.
     
     Returns
@@ -420,13 +437,64 @@ def get_oracle_pair(
 
 
 # =============================================================================
+# STRUCTURAL KAPPA COMPUTATION
+# =============================================================================
+
+def compute_structural_kappa(
+    D: NDArray,
+    m0_X: NDArray,
+) -> float:
+    """
+    Compute the structural condition number κ* from true nuisance values.
+    
+    This is used in Corrupted Oracle analysis to get the "true" κ* before
+    bias is injected. The structural κ* should be constant across all
+    bias levels for a given R² regime.
+    
+    From math.tex:
+        κ* = σ_D² / σ_V² = 1 / (1 - R²(D|X))
+    
+    Parameters
+    ----------
+    D : ndarray of shape (n,)
+        Treatment variable.
+    m0_X : ndarray of shape (n,)
+        True propensity scores m₀(X) = E[D|X].
+    
+    Returns
+    -------
+    structural_kappa : float
+        The structural condition number.
+    
+    Examples
+    --------
+    >>> from src.dgp import generate_data
+    >>> Y, D, X, info, dgp = generate_data(n=1000, target_r2=0.90)
+    >>> structural_kappa = compute_structural_kappa(D, info['m0_X'])
+    >>> print(f"κ* ≈ {structural_kappa:.1f}")  # Should be ~10 for R²=0.90
+    κ* ≈ 10.0
+    """
+    n = len(D)
+    V_true = D - m0_X  # True treatment residual
+    var_D = np.var(D)
+    sum_V_sq = np.sum(V_true ** 2)
+    
+    if sum_V_sq < 1e-12:
+        return np.inf
+    
+    return (n * var_D) / sum_V_sq
+
+
+# =============================================================================
 # AVAILABLE LEARNERS
 # =============================================================================
 
-AVAILABLE_LEARNERS = ['OLS', 'Lasso', 'RF', 'RF_Tuned', 'MLP']
+AVAILABLE_LEARNERS = ['OLS', 'Lasso', 'Ridge', 'RF', 'RF_Tuned', 'GBM', 'MLP']
+
+# For LaLonde application: comprehensive learner comparison
+LALONDE_LEARNERS = ['OLS', 'Lasso', 'Ridge', 'RF_Tuned', 'GBM', 'MLP']
 
 # For simulation study: RF (fast) instead of RF_Tuned for JCI-standard replications
-# Use RF_Tuned for sensitivity analysis only
 SIMULATION_LEARNERS = ['OLS', 'Lasso', 'RF', 'MLP']
 
 __all__ = [
@@ -435,6 +503,7 @@ __all__ = [
     'get_learner',
     'get_oracle_pair',
     'get_corrupted_oracle_pair',
+    'compute_structural_kappa',
     'AVAILABLE_LEARNERS',
     'SIMULATION_LEARNERS',
     'LEARNER_NAMES',
