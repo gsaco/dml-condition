@@ -42,3 +42,4 @@ tqdm>=4.62.0            # Progress bars for Monte Carlo loops
 # black>=22.0.0         # Code formatting
 # pytest>=7.0.0         # Testing
 # mypy>=0.990           # Type checking
+jupytext

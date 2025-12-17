@@ -1,4 +1,0 @@
-,Overlap,R²(D|X),Median κ_DML,Mean κ_DML,SD κ_DML,n values,Learners
-0,High (R²=0.75),0.75,0.71,0.68,0.08,"500, 2000","LIN, LAS, RF"
-1,Moderate (R²=0.90),0.9,2.11,1.84,0.5,"500, 2000","LIN, LAS, RF"
-2,Low (R²=0.97),0.97,7.6,5.82,2.86,"500, 2000","LIN, LAS, RF"

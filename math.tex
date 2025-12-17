@@ -1,0 +1,1361 @@
+% ==========================================================================
+% MATHEMATICAL APPENDIX: BIAS AMPLIFICATION IN DOUBLE MACHINE LEARNING
+% ==========================================================================
+% Author: Gabriel Saco
+% Date: December 2025
+% Target: Journal of Causal Inference
+% ==========================================================================
+% This appendix provides the complete mathematical derivations for the
+% bias amplification mechanism in Double Machine Learning (DML).
+% ==========================================================================
+
+\section{Mathematical Appendix}
+\label{app:math}
+
+% ==========================================================================
+\subsection{Notation and Probability Space}
+\label{app:notation}
+% ==========================================================================
+
+We begin by establishing the probability space and defining all notation
+with complete mathematical precision. This ``assumption hygiene'' ensures
+that all subsequent derivations rest on unambiguous foundations.
+
+% --------------------------------------------------------------------------
+\subsubsection{Probability Space}
+\label{app:prob_space}
+% --------------------------------------------------------------------------
+
+Let $(\Omega, \mathcal{F}, \Prob)$ denote a complete probability space, where:
+\begin{itemize}
+    \item $\Omega$ is the sample space of all possible states of the world;
+    \item $\mathcal{F} \subseteq 2^\Omega$ is a $\sigma$-algebra of measurable events;
+    \item $\Prob: \mathcal{F} \to [0,1]$ is a probability measure satisfying 
+    $\Prob(\Omega) = 1$.
+\end{itemize}
+
+All random variables are defined as measurable functions from $(\Omega, \mathcal{F})$ 
+to an appropriate measurable space. We denote the expectation operator under $\Prob$ 
+by $\E[\cdot]$, the variance operator by $\Var(\cdot)$, and the covariance operator 
+by $\Cov(\cdot, \cdot)$.
+
+% --------------------------------------------------------------------------
+\subsubsection{Observed Data and Random Variables}
+\label{app:data}
+% --------------------------------------------------------------------------
+
+We observe an independent and identically distributed (i.i.d.) sample 
+$\{W_i\}_{i=1}^n$ where each observation is drawn from a common distribution:
+\begin{equation}
+    W_i = (Y_i, D_i, X_i) \stackrel{\text{iid}}{\sim} P, \quad i = 1, \ldots, n,
+\end{equation}
+and $P$ is the true data-generating probability measure on the measurable space 
+$(\mathcal{W}, \mathcal{B}(\mathcal{W}))$, where:
+\begin{itemize}
+    \item $Y_i \in \mathcal{Y} \subseteq \R$ is the scalar outcome variable;
+    \item $D_i \in \mathcal{D} \subseteq \R$ is the scalar treatment variable;
+    \item $X_i \in \mathcal{X} \subseteq \R^p$ is the $p$-dimensional covariate vector;
+    \item $\mathcal{W} = \mathcal{Y} \times \mathcal{D} \times \mathcal{X}$ is the 
+    observation space;
+    \item $\mathcal{B}(\mathcal{W})$ denotes the Borel $\sigma$-algebra on $\mathcal{W}$.
+\end{itemize}
+
+We denote the marginal distribution of $X$ under $P$ by $P_X$, and conditional 
+distributions by $P_{Y|D,X}$, $P_{D|X}$, etc.
+
+% --------------------------------------------------------------------------
+\subsubsection{Function Spaces and Norms}
+\label{app:norms}
+% --------------------------------------------------------------------------
+
+For any measurable function $f: \mathcal{X} \to \R$ and $q \in [1, \infty)$, 
+we define the $L^q(P_X)$ norm as:
+\begin{equation}
+    \|f\|_{P,q} := \left( \int_{\mathcal{X}} |f(x)|^q \, dP_X(x) \right)^{1/q} 
+    = \left( \E\left[ |f(X)|^q \right] \right)^{1/q}.
+\end{equation}
+The $L^\infty(P_X)$ norm is:
+\begin{equation}
+    \|f\|_{P,\infty} := \inf\left\{ M > 0 : \Prob(|f(X)| \leq M) = 1 \right\}
+    = \text{ess\,sup}_{x \in \mathcal{X}} |f(x)|.
+\end{equation}
+
+Throughout this appendix, we use the abbreviated notation $\|f\|_{L^2} := \|f\|_{P,2}$ 
+for the $L^2(P_X)$ norm when the measure is clear from context.
+
+For finite samples, we define the empirical $L^2$ norm as:
+\begin{equation}
+    \|f\|_n := \left( \frac{1}{n} \sum_{i=1}^n |f(X_i)|^2 \right)^{1/2}.
+\end{equation}
+
+The empirical measure $\Prob_n$ places mass $1/n$ on each observation:
+\begin{equation}
+    \Prob_n(A) := \frac{1}{n} \sum_{i=1}^n \ind\{W_i \in A\}, \quad A \in \mathcal{B}(\mathcal{W}),
+\end{equation}
+where $\ind\{\cdot\}$ denotes the indicator function.
+
+% --------------------------------------------------------------------------
+\subsubsection{Stochastic Order Notation}
+\label{app:order}
+% --------------------------------------------------------------------------
+
+We employ standard stochastic order notation. For sequences of random variables 
+$\{Z_n\}_{n \geq 1}$ and deterministic sequences $\{a_n\}_{n \geq 1}$ with $a_n > 0$:
+\begin{itemize}
+    \item $Z_n = O_P(a_n)$ means: for every $\epsilon > 0$, there exists $M > 0$ 
+    such that $\sup_{n \geq 1} \Prob(|Z_n/a_n| > M) < \epsilon$;
+    \item $Z_n = o_P(a_n)$ means: $Z_n/a_n \pto 0$, i.e., for every $\epsilon > 0$, 
+    $\Prob(|Z_n/a_n| > \epsilon) \to 0$ as $n \to \infty$;
+    \item $Z_n \asymp a_n$ means: $Z_n = O_P(a_n)$ and $a_n = O_P(Z_n)$, i.e., 
+    there exist constants $0 < c < C < \infty$ such that 
+    $\Prob(c \leq |Z_n/a_n| \leq C) \to 1$.
+\end{itemize}
+
+For deterministic sequences $\{b_n\}$ and $\{a_n\}$:
+\begin{itemize}
+    \item $b_n = O(a_n)$ means: $\limsup_{n \to \infty} |b_n/a_n| < \infty$;
+    \item $b_n = o(a_n)$ means: $\lim_{n \to \infty} b_n/a_n = 0$.
+\end{itemize}
+
+% ==========================================================================
+\subsection{Causal Framework and Target Parameter}
+\label{app:causal}
+% ==========================================================================
+
+We ground our analysis in the potential outcomes framework before specializing 
+to the Partially Linear Regression (PLR) model.
+
+% --------------------------------------------------------------------------
+\subsubsection{Potential Outcomes}
+\label{app:potential}
+% --------------------------------------------------------------------------
+
+Following the Neyman--Rubin framework, we postulate the existence of potential 
+outcomes. For each unit $i$ and each possible treatment value $d \in \mathcal{D}$, 
+let $Y_i(d)$ denote the potential outcome that would be observed if unit $i$ 
+were assigned treatment level $d$. The potential outcome map 
+$d \mapsto Y_i(d)$ is a random function from $\mathcal{D}$ to $\mathcal{Y}$.
+
+The observed outcome is linked to potential outcomes via the consistency assumption:
+\begin{equation}
+    Y_i = Y_i(D_i), \quad i = 1, \ldots, n.
+\end{equation}
+
+\begin{assumption}[Unconfoundedness]\label{ass:unconf}
+Conditional on covariates $X$, the treatment $D$ is independent of all 
+potential outcomes:
+\begin{equation}
+    \{Y(d) : d \in \mathcal{D}\} \perp\!\!\!\perp D \mid X.
+\end{equation}
+\end{assumption}
+
+\begin{assumption}[Overlap / Positivity]\label{ass:overlap}
+There exists a constant $\underline{\sigma}^2 > 0$ such that:
+\begin{equation}
+    \Var(D \mid X = x) \geq \underline{\sigma}^2 \quad \text{for } P_X\text{-almost all } x \in \mathcal{X}.
+\end{equation}
+Equivalently, the conditional distribution $P_{D|X=x}$ is non-degenerate for 
+almost all $x$.
+\end{assumption}
+
+Assumption~\ref{ass:overlap} ensures that for any covariate value, there is 
+residual variation in treatment not explained by covariates. This is the 
+continuous-treatment analogue of the standard overlap assumption 
+$0 < e(x) < 1$ in binary treatment settings, where $e(x) = \Prob(D = 1 \mid X = x)$ 
+is the propensity score.
+
+% --------------------------------------------------------------------------
+\subsubsection{The Causal Parameter}
+\label{app:parameter}
+% --------------------------------------------------------------------------
+
+Under a linear constant-effect assumption, we define the causal parameter of 
+interest as:
+
+\begin{definition}[Average Causal Effect]\label{def:ate}
+Assume that the potential outcome function is linear in treatment:
+\begin{equation}
+    Y(d) = Y(0) + \theta_0 \cdot d, \quad \text{for all } d \in \mathcal{D},
+\end{equation}
+where $\theta_0 \in \R$ is a constant. Then $\theta_0$ is the \textbf{Average 
+Causal Effect} (ACE), representing the expected change in outcome per unit 
+change in treatment:
+\begin{equation}
+    \theta_0 = \frac{\partial}{\partial d} \E[Y(d)] = \E\left[ \frac{\partial Y(d)}{\partial d} \right].
+\end{equation}
+\end{definition}
+
+This constant-effect assumption underlies the Partially Linear Regression model 
+that we analyze. The assumption can be relaxed to heterogeneous effects 
+$\theta_0(x)$, but we focus on the homogeneous case for clarity of exposition.
+
+% ==========================================================================
+\subsection{The Partially Linear Regression Model}
+\label{app:plr}
+% ==========================================================================
+
+% --------------------------------------------------------------------------
+\subsubsection{Structural Equations}
+\label{app:structural}
+% --------------------------------------------------------------------------
+
+We work within the Partially Linear Regression (PLR) model, which is the 
+canonical example in \citet{chernozhukov2018dml}. The model consists of two 
+structural equations:
+
+\begin{align}
+    Y &= \theta_0 D + g_0(X) + \varepsilon, \label{eq:app_plr_y} \\
+    D &= m_0(X) + V, \label{eq:app_plr_d}
+\end{align}
+where:
+\begin{itemize}
+    \item $\theta_0 \in \R$ is the causal parameter of interest;
+    \item $g_0: \mathcal{X} \to \R$ is an unknown nuisance function capturing the 
+    direct effect of covariates on outcomes;
+    \item $m_0: \mathcal{X} \to \R$ is the \textbf{propensity function}, defined as:
+    \begin{equation}
+        m_0(X) := \E[D \mid X];
+    \end{equation}
+    \item $V := D - m_0(X)$ is the \textbf{treatment residual}, satisfying 
+    $\E[V \mid X] = 0$ by construction;
+    \item $\varepsilon$ is the \textbf{structural error}, satisfying the 
+    exogeneity condition specified below.
+\end{itemize}
+
+\begin{assumption}[Exogeneity]\label{ass:exog}
+The structural error $\varepsilon$ satisfies:
+\begin{equation}
+    \E[\varepsilon \mid D, X] = 0.
+\end{equation}
+\end{assumption}
+
+Assumption~\ref{ass:exog} implies that, conditional on covariates $X$, the 
+treatment $D$ is uncorrelated with the structural error. This is a mean-independence 
+condition weaker than full independence. Combined with Assumption~\ref{ass:unconf}, 
+it justifies interpreting $\theta_0$ as a causal effect.
+
+% --------------------------------------------------------------------------
+\subsubsection{The Outcome Nuisance Function}
+\label{app:outcome_nuisance}
+% --------------------------------------------------------------------------
+
+Define the reduced-form outcome regression:
+\begin{equation}
+    \ell_0(X) := \E[Y \mid X].
+\end{equation}
+
+\begin{lemma}[Relationship Between Nuisance Functions]\label{lem:nuisance_relation}
+Under the PLR model \eqref{eq:app_plr_y}--\eqref{eq:app_plr_d}, the following 
+identity holds:
+\begin{equation}
+    \ell_0(X) = \theta_0 m_0(X) + g_0(X).
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Taking conditional expectations of \eqref{eq:app_plr_y} given $X$:
+\begin{align}
+    \E[Y \mid X] &= \E[\theta_0 D + g_0(X) + \varepsilon \mid X] \\
+    &= \theta_0 \E[D \mid X] + g_0(X) + \E[\varepsilon \mid X] \\
+    &= \theta_0 m_0(X) + g_0(X) + 0 \\
+    &= \theta_0 m_0(X) + g_0(X),
+\end{align}
+where the third equality uses the fact that $\E[\varepsilon \mid X] = 
+\E[\E[\varepsilon \mid D, X] \mid X] = \E[0 \mid X] = 0$ by 
+Assumption~\ref{ass:exog} and the law of iterated expectations.
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{Outcome and Treatment Residuals}
+\label{app:residuals}
+% --------------------------------------------------------------------------
+
+Define the \textbf{outcome residual}:
+\begin{equation}
+    U := Y - \ell_0(X) = Y - \E[Y \mid X].
+\end{equation}
+
+\begin{lemma}[Residual Decomposition]\label{lem:residual_decomp}
+Under the PLR model, the outcome residual decomposes as:
+\begin{equation}
+    U = \theta_0 V + \varepsilon.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Starting from the definition of $U$ and substituting the structural equations:
+\begin{align}
+    U &= Y - \ell_0(X) \\
+    &= \left( \theta_0 D + g_0(X) + \varepsilon \right) - \left( \theta_0 m_0(X) + g_0(X) \right) \\
+    &= \theta_0 D - \theta_0 m_0(X) + \varepsilon \\
+    &= \theta_0 (D - m_0(X)) + \varepsilon \\
+    &= \theta_0 V + \varepsilon.
+\end{align}
+This completes the proof.
+\end{proof}
+
+This decomposition is fundamental: the outcome residual equals the treatment 
+effect times the treatment residual, plus structural noise. The treatment 
+residual $V$ is the ``identifying variation''---the part of treatment not 
+explained by covariates---that identifies $\theta_0$.
+
+% ==========================================================================
+\subsection{The DML Estimator and Cross-Fitting}
+\label{app:dml}
+% ==========================================================================
+
+% --------------------------------------------------------------------------
+\subsubsection{Cross-Fitting Procedure}
+\label{app:crossfit}
+% --------------------------------------------------------------------------
+
+Cross-fitting is essential for achieving valid inference when nuisance functions 
+are estimated with complex machine learning methods. We now define the procedure 
+precisely.
+
+\begin{definition}[Cross-Fitting Partition]\label{def:crossfit}
+A \textbf{$K$-fold cross-fitting partition} of the index set $\{1, \ldots, n\}$ 
+is a collection of disjoint subsets $\{I_1, \ldots, I_K\}$ such that:
+\begin{equation}
+    \bigcup_{k=1}^K I_k = \{1, \ldots, n\}, \quad I_j \cap I_k = \emptyset \text{ for } j \neq k.
+\end{equation}
+For each fold $k \in \{1, \ldots, K\}$, let $n_k := |I_k|$ denote the fold size. 
+We assume approximate balance: $n_k \approx n/K$ for all $k$.
+\end{definition}
+
+For each fold $k$, define the out-of-fold training sample:
+\begin{equation}
+    I_k^c := \{1, \ldots, n\} \setminus I_k = \bigcup_{j \neq k} I_j.
+\end{equation}
+
+\begin{definition}[Cross-Fitted Nuisance Estimates]\label{def:crossfit_nuisance}
+For each fold $k \in \{1, \ldots, K\}$, let $\widehat{m}^{(-k)}$ and 
+$\widehat{\ell}^{(-k)}$ denote nuisance function estimates trained on the 
+out-of-fold sample $\{W_i : i \in I_k^c\}$:
+\begin{align}
+    \widehat{m}^{(-k)} &= \widehat{m}^{(-k)}(\cdot; \{W_i\}_{i \in I_k^c}), \\
+    \widehat{\ell}^{(-k)} &= \widehat{\ell}^{(-k)}(\cdot; \{W_i\}_{i \in I_k^c}).
+\end{align}
+These estimates are measurable functions of the out-of-fold data only.
+\end{definition}
+
+The key property of cross-fitting is that for observations $i \in I_k$, the 
+nuisance estimates $\widehat{m}^{(-k)}(X_i)$ and $\widehat{\ell}^{(-k)}(X_i)$ 
+are computed from data independent of $W_i$. This breaks the dependence that 
+would otherwise arise from using the same data for both nuisance estimation 
+and parameter estimation.
+
+% --------------------------------------------------------------------------
+\subsubsection{Cross-Fitted Residuals}
+\label{app:cf_residuals}
+% --------------------------------------------------------------------------
+
+For each observation $i \in I_k$, define the cross-fitted residuals:
+\begin{align}
+    \widehat{V}_i &:= D_i - \widehat{m}^{(-k)}(X_i), \label{eq:app_Vhat} \\
+    \widehat{U}_i &:= Y_i - \widehat{\ell}^{(-k)}(X_i). \label{eq:app_Uhat}
+\end{align}
+
+These residuals can be decomposed into true residuals plus estimation error:
+\begin{align}
+    \widehat{V}_i &= V_i + \left( m_0(X_i) - \widehat{m}^{(-k)}(X_i) \right) 
+    =: V_i + \Delta_i^m, \label{eq:app_Vhat_decomp} \\
+    \widehat{U}_i &= U_i + \left( \ell_0(X_i) - \widehat{\ell}^{(-k)}(X_i) \right) 
+    =: U_i + \Delta_i^\ell, \label{eq:app_Uhat_decomp}
+\end{align}
+where $\Delta_i^m := m_0(X_i) - \widehat{m}^{(-k)}(X_i)$ is the propensity 
+estimation error and $\Delta_i^\ell := \ell_0(X_i) - \widehat{\ell}^{(-k)}(X_i)$ 
+is the outcome regression estimation error.
+
+% --------------------------------------------------------------------------
+\subsubsection{The Neyman-Orthogonal Score}
+\label{app:score}
+% --------------------------------------------------------------------------
+
+The DML estimator is based on the Neyman-orthogonal score function for the PLR 
+model:
+
+\begin{definition}[PLR Score Function]\label{def:score}
+For nuisance parameter $\eta = (\ell, m)$, define the score function:
+\begin{equation}
+    \psi(W; \theta, \eta) := (D - m(X)) \cdot \left\{ Y - \ell(X) - \theta(D - m(X)) \right\}.
+\end{equation}
+\end{definition}
+
+At the true parameter values $(\theta_0, \eta_0)$ where $\eta_0 = (\ell_0, m_0)$:
+\begin{equation}
+    \psi(W; \theta_0, \eta_0) = V \cdot \{U - \theta_0 V\} = V \cdot \varepsilon,
+\end{equation}
+where the second equality uses Lemma~\ref{lem:residual_decomp}.
+
+\begin{lemma}[Moment Condition]\label{lem:moment}
+Under Assumptions~\ref{ass:unconf}--\ref{ass:exog}, the true parameter 
+$\theta_0$ satisfies:
+\begin{equation}
+    \E[\psi(W; \theta_0, \eta_0)] = \E[V \varepsilon] = 0.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By the law of iterated expectations and Assumption~\ref{ass:exog}:
+\begin{align}
+    \E[V \varepsilon] &= \E\left[ \E[V \varepsilon \mid X] \right] \\
+    &= \E\left[ V \cdot \E[\varepsilon \mid X] \right] \\
+    &= \E\left[ V \cdot \E[\E[\varepsilon \mid D, X] \mid X] \right] \\
+    &= \E[V \cdot 0] = 0.
+\end{align}
+Note that the third equality uses $\E[V \mid X] = 0$, so we can also write 
+$\E[V \varepsilon] = \E[\E[V \mid X] \cdot \varepsilon] = 0$ by a different route.
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{Neyman Orthogonality}
+\label{app:orthogonality}
+% --------------------------------------------------------------------------
+
+The score $\psi$ satisfies Neyman orthogonality, meaning it is locally 
+insensitive to perturbations in the nuisance parameter.
+
+\begin{lemma}[Neyman Orthogonality]\label{lem:orthogonality}
+The score $\psi(W; \theta, \eta)$ satisfies:
+\begin{equation}
+    \left. \frac{\partial}{\partial r} \E\left[ \psi(W; \theta_0, \eta_0 + r(\eta - \eta_0)) \right] \right|_{r=0} = 0
+\end{equation}
+for all $\eta$ in a neighborhood of $\eta_0$.
+\end{lemma}
+
+\begin{proof}
+Let $\eta_r = \eta_0 + r(\eta - \eta_0) = (\ell_r, m_r)$ where 
+$\ell_r = \ell_0 + r(\ell - \ell_0)$ and $m_r = m_0 + r(m - m_0)$.
+Define $\tilde{V}_r := D - m_r(X)$ and $\tilde{U}_r := Y - \ell_r(X)$.
+
+The score becomes:
+\begin{equation}
+    \psi(W; \theta_0, \eta_r) = \tilde{V}_r \cdot \{\tilde{U}_r - \theta_0 \tilde{V}_r\}.
+\end{equation}
+
+Taking the derivative with respect to $r$ at $r = 0$:
+\begin{align}
+    \left. \frac{\partial}{\partial r} \psi(W; \theta_0, \eta_r) \right|_{r=0} 
+    &= \left. \frac{\partial \tilde{V}_r}{\partial r} \right|_{r=0} \cdot (U - \theta_0 V) 
+    + V \cdot \left. \frac{\partial}{\partial r}(\tilde{U}_r - \theta_0 \tilde{V}_r) \right|_{r=0}.
+\end{align}
+
+Computing the derivatives:
+\begin{align}
+    \left. \frac{\partial \tilde{V}_r}{\partial r} \right|_{r=0} &= -(m - m_0)(X), \\
+    \left. \frac{\partial \tilde{U}_r}{\partial r} \right|_{r=0} &= -(\ell - \ell_0)(X).
+\end{align}
+
+Therefore:
+\begin{align}
+    \left. \frac{\partial}{\partial r} \psi(W; \theta_0, \eta_r) \right|_{r=0} 
+    &= -(m - m_0)(X) \cdot \varepsilon + V \cdot \{-(\ell - \ell_0)(X) + \theta_0(m - m_0)(X)\}.
+\end{align}
+
+Taking expectations:
+\begin{align}
+    &\E\left[ \left. \frac{\partial}{\partial r} \psi(W; \theta_0, \eta_r) \right|_{r=0} \right] \\
+    &= -\E[(m - m_0)(X) \cdot \varepsilon] - \E[V \cdot (\ell - \ell_0)(X)] + \theta_0 \E[V \cdot (m - m_0)(X)].
+\end{align}
+
+Each term vanishes:
+\begin{itemize}
+    \item $\E[(m - m_0)(X) \cdot \varepsilon] = \E[(m - m_0)(X)] \cdot \E[\varepsilon \mid X] = 0$ 
+    by Assumption~\ref{ass:exog};
+    \item $\E[V \cdot (\ell - \ell_0)(X)] = \E[\E[V \mid X] \cdot (\ell - \ell_0)(X)] = 0$ 
+    since $\E[V \mid X] = 0$;
+    \item $\E[V \cdot (m - m_0)(X)] = \E[\E[V \mid X] \cdot (m - m_0)(X)] = 0$ 
+    since $\E[V \mid X] = 0$.
+\end{itemize}
+
+Therefore, the pathwise derivative is zero, establishing Neyman orthogonality.
+\end{proof}
+
+Neyman orthogonality implies that the influence of nuisance estimation error 
+on the moment condition is second-order. This is crucial for achieving 
+$\sqrt{n}$-consistent inference despite using regularized machine learning 
+estimators for nuisance functions.
+
+% --------------------------------------------------------------------------
+\subsubsection{The DML Estimator}
+\label{app:dml_estimator}
+% --------------------------------------------------------------------------
+
+The DML estimator solves the empirical moment condition using cross-fitted 
+residuals:
+
+\begin{definition}[DML Estimator]\label{def:dml_estimator}
+The \textbf{Double Machine Learning estimator} $\widehat{\theta}$ is defined as:
+\begin{equation}
+    \widehat{\theta} := \frac{\sum_{i=1}^n \widehat{V}_i \widehat{U}_i}{\sum_{i=1}^n \widehat{V}_i^2}.
+\end{equation}
+\end{definition}
+
+This estimator can be written in several equivalent forms. Using empirical 
+averages:
+\begin{equation}
+    \widehat{\theta} = \frac{\frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i}{\frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2} 
+    = \frac{\Prob_n[\widehat{V} \widehat{U}]}{\Prob_n[\widehat{V}^2]}.
+\end{equation}
+
+The estimator is also the solution to the empirical score equation:
+\begin{equation}
+    \widehat{\Psi}_n(\widehat{\theta}) := \frac{1}{n}\sum_{i=1}^n \psi(W_i; \widehat{\theta}, \widehat{\eta}_i) = 0,
+\end{equation}
+where $\widehat{\eta}_i = (\widehat{\ell}^{(-k)}, \widehat{m}^{(-k)})$ for $i \in I_k$.
+
+% ==========================================================================
+\subsection{The Condition Number}
+\label{app:condition}
+% ==========================================================================
+
+This section develops the condition number $\kappa$, which quantifies the 
+sensitivity of the DML estimator to perturbations in the moment condition.
+We emphasize that $\kappa$ is defined as the \textbf{Standardized Condition 
+Number}, equivalent to the classical Variance Inflation Factor (VIF).
+
+% --------------------------------------------------------------------------
+\subsubsection{Population Quantities}
+\label{app:pop_quantities}
+% --------------------------------------------------------------------------
+
+We begin by defining the key population quantities that govern identification.
+
+\begin{definition}[Treatment Variance Components]\label{def:var_components}
+Define the following variance quantities:
+\begin{align}
+    \sigma_D^2 &:= \Var(D) = \E\left[ (D - \E[D])^2 \right], \label{eq:sigmaD} \\
+    \sigma_V^2 &:= \E[V^2] = \E\left[ (D - m_0(X))^2 \right] = \E[\Var(D \mid X)], \label{eq:sigmaV} \\
+    \sigma_{m}^2 &:= \Var(m_0(X)) = \E\left[ (m_0(X) - \E[D])^2 \right]. \label{eq:sigmam}
+\end{align}
+\end{definition}
+
+These quantities are related by the law of total variance:
+
+\begin{lemma}[Variance Decomposition]\label{lem:var_decomp}
+The following identity holds:
+\begin{equation}
+    \sigma_D^2 = \sigma_V^2 + \sigma_m^2.
+\end{equation}
+Equivalently:
+\begin{equation}
+    \Var(D) = \E[\Var(D \mid X)] + \Var(\E[D \mid X]).
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By the law of total variance:
+\begin{align}
+    \Var(D) &= \E[\Var(D \mid X)] + \Var(\E[D \mid X]) \\
+    &= \E[(D - m_0(X))^2] + \Var(m_0(X)) \\
+    &= \sigma_V^2 + \sigma_m^2.
+\end{align}
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{The Population Condition Number}
+\label{app:pop_kappa}
+% --------------------------------------------------------------------------
+
+\begin{definition}[Population Condition Number]\label{def:kappa_pop}
+The \textbf{population condition number} $\kappa$ is defined as:
+\begin{equation}
+    \boxed{\kappa := \frac{\Var(D)}{\E[\Var(D \mid X)]} = \frac{\sigma_D^2}{\sigma_V^2}.}
+\end{equation}
+\end{definition}
+
+This quantity has a natural interpretation: it is the ratio of total treatment 
+variance to residual (within-covariate) treatment variance. When covariates 
+explain little of the treatment variation, $\kappa \approx 1$. When covariates 
+explain most of the treatment variation, $\kappa \to \infty$.
+
+\begin{lemma}[Equivalent Representations of $\kappa$]\label{lem:kappa_equiv}
+The condition number admits the following equivalent representations:
+\begin{align}
+    \kappa &= \frac{\sigma_D^2}{\sigma_V^2} = \frac{1}{1 - R^2(D \mid X)}, \label{eq:kappa_r2}
+\end{align}
+where $R^2(D \mid X) := 1 - \sigma_V^2/\sigma_D^2$ is the population 
+$R$-squared from regressing $D$ on $X$.
+\end{lemma}
+
+\begin{proof}
+The population $R$-squared is defined as:
+\begin{equation}
+    R^2(D \mid X) := \frac{\Var(m_0(X))}{\Var(D)} = \frac{\sigma_m^2}{\sigma_D^2} = 1 - \frac{\sigma_V^2}{\sigma_D^2}.
+\end{equation}
+Solving for $\sigma_V^2/\sigma_D^2$:
+\begin{equation}
+    \frac{\sigma_V^2}{\sigma_D^2} = 1 - R^2(D \mid X).
+\end{equation}
+Therefore:
+\begin{equation}
+    \kappa = \frac{\sigma_D^2}{\sigma_V^2} = \frac{1}{1 - R^2(D \mid X)}.
+\end{equation}
+\end{proof}
+
+\begin{remark}[VIF Interpretation]\label{rem:vif}
+The condition number $\kappa = 1/(1 - R^2(D \mid X))$ is precisely the 
+\textbf{Variance Inflation Factor} (VIF) from classical regression diagnostics. 
+In the linear regression of $Y$ on $(D, X)$, the VIF for the coefficient on $D$ 
+measures how much the variance of $\widehat{\theta}$ is inflated due to 
+collinearity between $D$ and $X$. Our contribution is to show that this 
+same quantity governs not just variance inflation but also \emph{bias amplification} 
+in the DML context.
+\end{remark}
+
+% --------------------------------------------------------------------------
+\subsubsection{The Empirical Condition Number}
+\label{app:emp_kappa}
+% --------------------------------------------------------------------------
+
+\begin{definition}[Empirical Condition Number]\label{def:kappa_emp}
+The \textbf{empirical condition number} $\widehat{\kappa}$ is defined as:
+\begin{equation}
+    \boxed{\widehat{\kappa} := \frac{\widehat{\Var}(D)}{\frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2} 
+    = \frac{\widehat{\sigma}_D^2}{\widehat{\sigma}_V^2},}
+\end{equation}
+where:
+\begin{align}
+    \widehat{\sigma}_D^2 &:= \frac{1}{n}\sum_{i=1}^n (D_i - \bar{D})^2, \quad \bar{D} := \frac{1}{n}\sum_{i=1}^n D_i, \\
+    \widehat{\sigma}_V^2 &:= \frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2.
+\end{align}
+\end{definition}
+
+Equivalently, in terms of the empirical $R$-squared:
+\begin{equation}
+    \widehat{\kappa} = \frac{1}{1 - \widehat{R}^2(D \mid X)},
+\end{equation}
+where $\widehat{R}^2(D \mid X) := 1 - \widehat{\sigma}_V^2/\widehat{\sigma}_D^2$ is the 
+out-of-sample $R$-squared from the cross-fitted propensity model.
+
+\begin{lemma}[Consistency of $\widehat{\kappa}$]\label{lem:kappa_consistent}
+Under standard regularity conditions (bounded second moments), as $n \to \infty$:
+\begin{equation}
+    \widehat{\kappa} \pto \kappa.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By the weak law of large numbers:
+\begin{align}
+    \widehat{\sigma}_D^2 &\pto \sigma_D^2, \\
+    \widehat{\sigma}_V^2 &\pto \sigma_V^2 \quad \text{(under nuisance consistency)}.
+\end{align}
+By the continuous mapping theorem applied to the ratio:
+\begin{equation}
+    \widehat{\kappa} = \frac{\widehat{\sigma}_D^2}{\widehat{\sigma}_V^2} \pto \frac{\sigma_D^2}{\sigma_V^2} = \kappa.
+\end{equation}
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{The Jacobian and its Relationship to $\kappa$}
+\label{app:jacobian}
+% --------------------------------------------------------------------------
+
+The condition number arises naturally from the Jacobian of the score function.
+This connection is fundamental and requires careful algebraic manipulation.
+
+\begin{definition}[Empirical Jacobian]\label{def:jacobian}
+The \textbf{empirical Jacobian} of the score with respect to $\theta$ is:
+\begin{equation}
+    \widehat{J}_\theta := \frac{\partial}{\partial \theta} \widehat{\Psi}_n(\theta, \widehat{\eta}) 
+    = \frac{\partial}{\partial \theta} \left[ \frac{1}{n}\sum_{i=1}^n \widehat{V}_i(\widehat{U}_i - \theta \widehat{V}_i) \right]
+    = -\frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2 = -\widehat{\sigma}_V^2.
+\end{equation}
+\end{definition}
+
+The Jacobian is negative because increasing $\theta$ decreases the score.
+Its magnitude $|\widehat{J}_\theta| = \widehat{\sigma}_V^2$ measures the 
+``curvature'' of the moment condition---how quickly the score changes as 
+$\theta$ moves away from its root.
+
+\begin{lemma}[Jacobian-Kappa Relationship]\label{lem:jacobian_kappa}
+The condition number relates to the Jacobian via:
+\begin{equation}
+    \widehat{\kappa} = \frac{\widehat{\sigma}_D^2}{|\widehat{J}_\theta|}.
+\end{equation}
+Equivalently:
+\begin{equation}
+    |\widehat{J}_\theta|^{-1} = \frac{\widehat{\kappa}}{\widehat{\sigma}_D^2}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+From Definition~\ref{def:jacobian}, $|\widehat{J}_\theta| = \widehat{\sigma}_V^2$.
+From Definition~\ref{def:kappa_emp}, $\widehat{\kappa} = \widehat{\sigma}_D^2/\widehat{\sigma}_V^2$.
+Therefore:
+\begin{equation}
+    \frac{\widehat{\sigma}_D^2}{|\widehat{J}_\theta|} = \frac{\widehat{\sigma}_D^2}{\widehat{\sigma}_V^2} = \widehat{\kappa}.
+\end{equation}
+Rearranging:
+\begin{equation}
+    |\widehat{J}_\theta|^{-1} = \frac{1}{\widehat{\sigma}_V^2} = \frac{\widehat{\kappa}}{\widehat{\sigma}_D^2}.
+\end{equation}
+\end{proof}
+
+This relationship is crucial: when we invert the Jacobian to solve for the 
+estimator error, we obtain a factor of $|\widehat{J}_\theta|^{-1} = \widehat{\kappa}/\widehat{\sigma}_D^2$.
+The condition number $\widehat{\kappa}$ is the \emph{scale-invariant} part of this 
+inverse Jacobian.
+
+% ==========================================================================
+\subsection{The Exact Finite-Sample Decomposition}
+\label{app:decomposition}
+% ==========================================================================
+
+We now derive the central result: an exact algebraic decomposition of the 
+DML estimator error. This decomposition reveals the bias amplification mechanism.
+
+% --------------------------------------------------------------------------
+\subsubsection{Decomposing the Numerator}
+\label{app:numerator}
+% --------------------------------------------------------------------------
+
+The DML estimator has the form $\widehat{\theta} = \text{Numerator}/\text{Denominator}$.
+We begin by decomposing the numerator.
+
+\begin{lemma}[Numerator Decomposition]\label{lem:numerator}
+The numerator of the DML estimator decomposes as:
+\begin{equation}
+    \frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i = \theta_0 \cdot \frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2 
+    + \frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i + B_n,
+\end{equation}
+where:
+\begin{equation}
+    B_n := \frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i - \theta_0 \cdot \frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2 
+    - \frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i
+\end{equation}
+is the \textbf{nuisance bias term}.
+\end{lemma}
+
+\begin{proof}
+We expand $\widehat{V}_i \widehat{U}_i$ using the decompositions 
+\eqref{eq:app_Vhat_decomp}--\eqref{eq:app_Uhat_decomp}:
+\begin{align}
+    \widehat{V}_i &= V_i + \Delta_i^m, \\
+    \widehat{U}_i &= U_i + \Delta_i^\ell = \theta_0 V_i + \varepsilon_i + \Delta_i^\ell,
+\end{align}
+where $\Delta_i^m := m_0(X_i) - \widehat{m}^{(-k)}(X_i)$ and 
+$\Delta_i^\ell := \ell_0(X_i) - \widehat{\ell}^{(-k)}(X_i)$.
+
+Expanding the product:
+\begin{align}
+    \widehat{V}_i \widehat{U}_i &= (V_i + \Delta_i^m)(\theta_0 V_i + \varepsilon_i + \Delta_i^\ell) \\
+    &= \theta_0 V_i^2 + V_i \varepsilon_i + V_i \Delta_i^\ell \\
+    &\quad + \theta_0 V_i \Delta_i^m + \Delta_i^m \varepsilon_i + \Delta_i^m \Delta_i^\ell.
+\end{align}
+
+Summing and dividing by $n$:
+\begin{align}
+    \frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i 
+    &= \theta_0 \cdot \frac{1}{n}\sum_{i=1}^n V_i^2 + \frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i \\
+    &\quad + \frac{1}{n}\sum_{i=1}^n V_i \Delta_i^\ell + \theta_0 \cdot \frac{1}{n}\sum_{i=1}^n V_i \Delta_i^m \\
+    &\quad + \frac{1}{n}\sum_{i=1}^n \Delta_i^m \varepsilon_i + \frac{1}{n}\sum_{i=1}^n \Delta_i^m \Delta_i^\ell.
+\end{align}
+
+Now we add and subtract $\theta_0 \cdot \frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2$.
+Note that:
+\begin{align}
+    \frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2 &= \frac{1}{n}\sum_{i=1}^n (V_i + \Delta_i^m)^2 \\
+    &= \frac{1}{n}\sum_{i=1}^n V_i^2 + \frac{2}{n}\sum_{i=1}^n V_i \Delta_i^m 
+    + \frac{1}{n}\sum_{i=1}^n (\Delta_i^m)^2.
+\end{align}
+
+Therefore:
+\begin{align}
+    \frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i 
+    &= \theta_0 \cdot \frac{1}{n}\sum_{i=1}^n \widehat{V}_i^2 + \frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i + B_n,
+\end{align}
+where $B_n$ collects all remaining terms:
+\begin{align}
+    B_n &= \frac{1}{n}\sum_{i=1}^n V_i \Delta_i^\ell - \theta_0 \cdot \frac{1}{n}\sum_{i=1}^n V_i \Delta_i^m \\
+    &\quad + \frac{1}{n}\sum_{i=1}^n \Delta_i^m \varepsilon_i + \frac{1}{n}\sum_{i=1}^n \Delta_i^m \Delta_i^\ell \\
+    &\quad - \theta_0 \cdot \frac{1}{n}\sum_{i=1}^n (\Delta_i^m)^2.
+\end{align}
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{The Main Decomposition}
+\label{app:main_decomp}
+% --------------------------------------------------------------------------
+
+We now state and prove the main decomposition result.
+
+\begin{lemma}[Exact Finite-Sample Decomposition]\label{lem:exact_decomp}
+The DML estimator satisfies the following \textbf{exact algebraic identity}:
+\begin{equation}
+    \boxed{\widehat{\theta} - \theta_0 = \frac{1}{\widehat{\sigma}_V^2} \left( S_n + B_n \right),}
+\end{equation}
+where:
+\begin{align}
+    S_n &:= \frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i \quad \text{(Oracle Sampling Term)}, \label{eq:Sn_def} \\
+    B_n &:= \frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i - \theta_0 \cdot \widehat{\sigma}_V^2 - S_n 
+    \quad \text{(Nuisance Bias Term)}. \label{eq:Bn_def}
+\end{align}
+This decomposition is exact---it involves no Taylor approximation or remainder term.
+\end{lemma}
+
+\begin{proof}
+Starting from the definition of the DML estimator:
+\begin{align}
+    \widehat{\theta} &= \frac{\sum_{i=1}^n \widehat{V}_i \widehat{U}_i}{\sum_{i=1}^n \widehat{V}_i^2} 
+    = \frac{\frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i}{\widehat{\sigma}_V^2}.
+\end{align}
+
+Using Lemma~\ref{lem:numerator}:
+\begin{align}
+    \widehat{\theta} &= \frac{\theta_0 \widehat{\sigma}_V^2 + S_n + B_n}{\widehat{\sigma}_V^2} \\
+    &= \theta_0 + \frac{S_n + B_n}{\widehat{\sigma}_V^2}.
+\end{align}
+
+Subtracting $\theta_0$ from both sides:
+\begin{equation}
+    \widehat{\theta} - \theta_0 = \frac{S_n + B_n}{\widehat{\sigma}_V^2} = \frac{1}{\widehat{\sigma}_V^2}(S_n + B_n).
+\end{equation}
+
+This is an exact algebraic identity because the PLR score is affine in $\theta$.
+There is no Taylor expansion involved, hence no remainder term.
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{Re-expressing in Terms of the Condition Number}
+\label{app:kappa_form}
+% --------------------------------------------------------------------------
+
+We now re-express the decomposition to highlight the role of $\kappa$.
+This requires careful handling of units.
+
+\begin{theorem}[Bias Amplification Decomposition]\label{thm:bias_amp}
+The DML estimator error admits the following representation:
+\begin{equation}
+    \boxed{\widehat{\theta} - \theta_0 = \widehat{\kappa} \cdot \left( \frac{S_n}{\widehat{\sigma}_D^2} + \frac{B_n}{\widehat{\sigma}_D^2} \right).}
+\end{equation}
+Define the \textbf{standardized} oracle and bias terms:
+\begin{align}
+    S_n' &:= \frac{S_n}{\widehat{\sigma}_D^2} = \frac{\frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i}{\widehat{\sigma}_D^2}, \\
+    B_n' &:= \frac{B_n}{\widehat{\sigma}_D^2}.
+\end{align}
+Then:
+\begin{equation}
+    \widehat{\theta} - \theta_0 = \widehat{\kappa} \cdot S_n' + \widehat{\kappa} \cdot B_n'.
+\end{equation}
+The term $\widehat{\kappa} \cdot B_n'$ is the \textbf{Bias Amplification Term}.
+\end{theorem}
+
+\begin{proof}
+From Lemma~\ref{lem:exact_decomp}:
+\begin{equation}
+    \widehat{\theta} - \theta_0 = \frac{1}{\widehat{\sigma}_V^2}(S_n + B_n).
+\end{equation}
+
+Multiply and divide by $\widehat{\sigma}_D^2$:
+\begin{align}
+    \widehat{\theta} - \theta_0 &= \frac{\widehat{\sigma}_D^2}{\widehat{\sigma}_V^2} \cdot \frac{S_n + B_n}{\widehat{\sigma}_D^2} \\
+    &= \widehat{\kappa} \cdot \left( \frac{S_n}{\widehat{\sigma}_D^2} + \frac{B_n}{\widehat{\sigma}_D^2} \right) \\
+    &= \widehat{\kappa} \cdot S_n' + \widehat{\kappa} \cdot B_n'.
+\end{align}
+
+The key insight is that $\widehat{\kappa} = \widehat{\sigma}_D^2/\widehat{\sigma}_V^2$ by 
+Definition~\ref{def:kappa_emp}, so the factorization is exact.
+\end{proof}
+
+\begin{remark}[Units Analysis]\label{rem:units}
+Let us verify that units are consistent. Suppose $D$ has units $[D]$ and 
+$Y$ has units $[Y]$. Then:
+\begin{itemize}
+    \item $\theta_0$ has units $[Y]/[D]$ (effect of treatment on outcome);
+    \item $S_n = \frac{1}{n}\sum V_i \varepsilon_i$ has units $[D] \cdot [Y] = [D][Y]$;
+    \item $\widehat{\sigma}_D^2$ has units $[D]^2$;
+    \item $S_n' = S_n/\widehat{\sigma}_D^2$ has units $[D][Y]/[D]^2 = [Y]/[D]$;
+    \item $\widehat{\kappa}$ is dimensionless (ratio of variances in same units);
+    \item $\widehat{\kappa} \cdot S_n'$ has units $[Y]/[D]$, matching $\widehat{\theta} - \theta_0$. \checkmark
+\end{itemize}
+The standardization by $\widehat{\sigma}_D^2$ ensures dimensional consistency while 
+extracting the dimensionless condition number $\widehat{\kappa}$.
+\end{remark}
+
+% --------------------------------------------------------------------------
+\subsubsection{Explicit Form of the Bias Term}
+\label{app:bias_explicit}
+% --------------------------------------------------------------------------
+
+We now provide an explicit expression for the nuisance bias term $B_n$.
+
+\begin{lemma}[Explicit Bias Decomposition]\label{lem:bias_explicit}
+The nuisance bias term $B_n$ can be written as:
+\begin{equation}
+    B_n = B_n^{(1)} + B_n^{(2)} + B_n^{(3)} + B_n^{(4)} + B_n^{(5)},
+\end{equation}
+where:
+\begin{align}
+    B_n^{(1)} &:= \frac{1}{n}\sum_{i=1}^n V_i \Delta_i^\ell, \label{eq:Bn1} \\
+    B_n^{(2)} &:= -\theta_0 \cdot \frac{1}{n}\sum_{i=1}^n V_i \Delta_i^m, \label{eq:Bn2} \\
+    B_n^{(3)} &:= \frac{1}{n}\sum_{i=1}^n \Delta_i^m \varepsilon_i, \label{eq:Bn3} \\
+    B_n^{(4)} &:= \frac{1}{n}\sum_{i=1}^n \Delta_i^m \Delta_i^\ell, \label{eq:Bn4} \\
+    B_n^{(5)} &:= -\theta_0 \cdot \frac{1}{n}\sum_{i=1}^n (\Delta_i^m)^2. \label{eq:Bn5}
+\end{align}
+\end{lemma}
+
+\begin{proof}
+This follows directly from the expansion in the proof of Lemma~\ref{lem:numerator}.
+We reorganize the terms:
+\begin{align}
+    B_n &= \frac{1}{n}\sum_{i=1}^n \widehat{V}_i \widehat{U}_i - \theta_0 \widehat{\sigma}_V^2 - S_n \\
+    &= \left( \theta_0 \widehat{\sigma}_V^2 + S_n + B_n^{(1)} + B_n^{(2)} + B_n^{(3)} + B_n^{(4)} + B_n^{(5)} \right) 
+    - \theta_0 \widehat{\sigma}_V^2 - S_n \\
+    &= B_n^{(1)} + B_n^{(2)} + B_n^{(3)} + B_n^{(4)} + B_n^{(5)}.
+\end{align}
+\end{proof}
+
+\begin{remark}[Interpretation of Bias Components]\label{rem:bias_interp}
+The five components of $B_n$ have distinct sources:
+\begin{itemize}
+    \item $B_n^{(1)}$: Interaction of true treatment residual $V$ with outcome estimation error;
+    \item $B_n^{(2)}$: Interaction of true treatment residual $V$ with propensity estimation error;
+    \item $B_n^{(3)}$: Interaction of propensity estimation error with structural error $\varepsilon$;
+    \item $B_n^{(4)}$: \textbf{Product of estimation errors}---the ``second-order'' term;
+    \item $B_n^{(5)}$: Squared propensity estimation error (always negative for $\theta_0 > 0$).
+\end{itemize}
+Under Neyman orthogonality, terms $B_n^{(1)}$, $B_n^{(2)}$, and $B_n^{(3)}$ have 
+mean zero conditionally on the out-of-fold data. The term $B_n^{(4)}$ is the 
+residual that drives the product-rate requirement: 
+$\|\widehat{m} - m_0\|_{L^2} \cdot \|\widehat{\ell} - \ell_0\|_{L^2} = o(n^{-1/2})$.
+\end{remark}
+
+% ==========================================================================
+\subsection{Finite-Sample Probability Bounds}
+\label{app:bounds}
+% ==========================================================================
+
+We now establish probability bounds for the estimator error, formalizing 
+how the condition number $\kappa$ governs finite-sample behavior.
+
+% --------------------------------------------------------------------------
+\subsubsection{Assumptions for Finite-Sample Analysis}
+\label{app:assumptions}
+% --------------------------------------------------------------------------
+
+\begin{assumption}[Bounded Moments]\label{ass:moments}
+There exist constants $\overline{\sigma}_V^2, \overline{\sigma}_\varepsilon^2 < \infty$ such that:
+\begin{align}
+    \E[V^4] &\leq \overline{\sigma}_V^4, \\
+    \E[\varepsilon^4] &\leq \overline{\sigma}_\varepsilon^4.
+\end{align}
+\end{assumption}
+
+\begin{assumption}[Nuisance Estimation Rates]\label{ass:rates}
+There exist sequences $r_n^m, r_n^\ell \to 0$ such that:
+\begin{align}
+    \|\widehat{m}^{(-k)} - m_0\|_{L^2} &= O_P(r_n^m), \\
+    \|\widehat{\ell}^{(-k)} - \ell_0\|_{L^2} &= O_P(r_n^\ell).
+\end{align}
+Define the product rate:
+\begin{equation}
+    r_n := r_n^m \cdot r_n^\ell.
+\end{equation}
+\end{assumption}
+
+\begin{assumption}[Bounded Condition Number Growth]\label{ass:kappa_rate}
+The condition number sequence satisfies:
+\begin{equation}
+    \kappa_n := \kappa \text{ (which may depend on } n \text{)} = O(n^\gamma)
+\end{equation}
+for some $\gamma \geq 0$.
+\end{assumption}
+
+% --------------------------------------------------------------------------
+\subsubsection{Bound on the Oracle Term}
+\label{app:oracle_bound}
+% --------------------------------------------------------------------------
+
+\begin{lemma}[Oracle Term Rate]\label{lem:oracle_rate}
+Under Assumption~\ref{ass:moments}, the oracle sampling term satisfies:
+\begin{equation}
+    S_n = O_P(n^{-1/2}).
+\end{equation}
+More precisely, for any $\delta > 0$, there exists $C_\delta < \infty$ such that:
+\begin{equation}
+    \Prob\left( |S_n| > C_\delta \cdot \frac{\sigma_V \sigma_\varepsilon}{\sqrt{n}} \right) < \delta.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Note that $S_n = \frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i$. Since 
+$\E[V_i \varepsilon_i] = \E[\E[V_i \varepsilon_i \mid X_i]] = \E[V_i \E[\varepsilon_i \mid X_i]] = 0$, 
+the summands are mean-zero.
+
+By independence across $i$ and Chebyshev's inequality:
+\begin{equation}
+    \Var(S_n) = \frac{1}{n^2} \sum_{i=1}^n \Var(V_i \varepsilon_i) = \frac{1}{n} \Var(V \varepsilon).
+\end{equation}
+
+Now, $\Var(V \varepsilon) = \E[V^2 \varepsilon^2] - (\E[V \varepsilon])^2 = \E[V^2 \varepsilon^2]$.
+
+By Cauchy-Schwarz and Assumption~\ref{ass:moments}:
+\begin{equation}
+    \E[V^2 \varepsilon^2] \leq \sqrt{\E[V^4]} \sqrt{\E[\varepsilon^4]} \leq \overline{\sigma}_V^2 \overline{\sigma}_\varepsilon^2.
+\end{equation}
+
+Therefore, $\Var(S_n) \leq \overline{\sigma}_V^2 \overline{\sigma}_\varepsilon^2/n$.
+
+By Chebyshev's inequality, for any $t > 0$:
+\begin{equation}
+    \Prob(|S_n| > t) \leq \frac{\Var(S_n)}{t^2} \leq \frac{\overline{\sigma}_V^2 \overline{\sigma}_\varepsilon^2}{n t^2}.
+\end{equation}
+
+Setting $t = C_\delta \sigma_V \sigma_\varepsilon/\sqrt{n}$ with $C_\delta = 1/\sqrt{\delta}$:
+\begin{equation}
+    \Prob\left(|S_n| > \frac{C_\delta \sigma_V \sigma_\varepsilon}{\sqrt{n}}\right) 
+    \leq \frac{\overline{\sigma}_V^2 \overline{\sigma}_\varepsilon^2/n}{C_\delta^2 \sigma_V^2 \sigma_\varepsilon^2/n} 
+    = \frac{\overline{\sigma}_V^2 \overline{\sigma}_\varepsilon^2}{C_\delta^2 \sigma_V^2 \sigma_\varepsilon^2}.
+\end{equation}
+
+Since $\overline{\sigma}_V^2 \geq \sigma_V^2$ and $\overline{\sigma}_\varepsilon^2 \geq \sigma_\varepsilon^2$, 
+this bound can be made arbitrarily small by taking $C_\delta$ large enough.
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{Bound on the Bias Term}
+\label{app:bias_bound}
+% --------------------------------------------------------------------------
+
+\begin{lemma}[Bias Term Rate]\label{lem:bias_rate}
+Under Assumptions~\ref{ass:moments}--\ref{ass:rates}, the dominant component 
+of the bias term satisfies:
+\begin{equation}
+    B_n^{(4)} = O_P(r_n) = O_P(r_n^m \cdot r_n^\ell).
+\end{equation}
+The remaining terms $B_n^{(1)}, B_n^{(2)}, B_n^{(3)}$ are $O_P(r_n^m + r_n^\ell)/\sqrt{n}$ 
+under cross-fitting.
+\end{lemma}
+
+\begin{proof}
+For the product term $B_n^{(4)} = \frac{1}{n}\sum_{i=1}^n \Delta_i^m \Delta_i^\ell$:
+
+By Cauchy-Schwarz:
+\begin{align}
+    |B_n^{(4)}| &\leq \frac{1}{n}\sum_{i=1}^n |\Delta_i^m| |\Delta_i^\ell| \\
+    &\leq \left( \frac{1}{n}\sum_{i=1}^n (\Delta_i^m)^2 \right)^{1/2} 
+    \left( \frac{1}{n}\sum_{i=1}^n (\Delta_i^\ell)^2 \right)^{1/2} \\
+    &= \|\widehat{m}^{(-k)} - m_0\|_n \cdot \|\widehat{\ell}^{(-k)} - \ell_0\|_n.
+\end{align}
+
+Under standard empirical process arguments (see, e.g., \citet{chernozhukov2018dml}), 
+the empirical norms concentrate around their population counterparts:
+\begin{equation}
+    \|\widehat{m}^{(-k)} - m_0\|_n = O_P(r_n^m), \quad 
+    \|\widehat{\ell}^{(-k)} - \ell_0\|_n = O_P(r_n^\ell).
+\end{equation}
+
+Therefore, $B_n^{(4)} = O_P(r_n^m \cdot r_n^\ell) = O_P(r_n)$.
+
+For terms like $B_n^{(1)} = \frac{1}{n}\sum_{i=1}^n V_i \Delta_i^\ell$: by cross-fitting, 
+$V_i$ and $\Delta_i^\ell$ are conditionally independent given $X_i$ for $i \in I_k$, 
+because $\Delta_i^\ell$ depends only on out-of-fold data. The conditional mean 
+$\E[V_i \mid X_i] = 0$, so $\E[B_n^{(1)} \mid \text{out-of-fold}] = 0$, and the 
+variance is $O(r_n^\ell/n)$, giving $B_n^{(1)} = O_P(r_n^\ell/\sqrt{n})$.
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{Main Finite-Sample Bound}
+\label{app:main_bound}
+% --------------------------------------------------------------------------
+
+\begin{theorem}[Finite-Sample Error Bound]\label{thm:fs_bound}
+Under Assumptions~\ref{ass:moments}--\ref{ass:kappa_rate}, the DML estimator 
+satisfies:
+\begin{equation}
+    \boxed{\widehat{\theta} - \theta_0 = O_P\left( \frac{\kappa_n}{\sqrt{n}} + \kappa_n \cdot r_n \right).}
+\end{equation}
+The first term is \textbf{variance inflation} (oracle sampling scaled by $\kappa$).
+The second term is \textbf{bias amplification} (nuisance bias scaled by $\kappa$).
+\end{theorem}
+
+\begin{proof}
+From Theorem~\ref{thm:bias_amp}:
+\begin{equation}
+    \widehat{\theta} - \theta_0 = \widehat{\kappa} \cdot \frac{S_n + B_n}{\widehat{\sigma}_D^2}.
+\end{equation}
+
+Since $\widehat{\sigma}_D^2 \pto \sigma_D^2$ (a constant), we have 
+$1/\widehat{\sigma}_D^2 = O_P(1)$.
+
+Using Lemmas~\ref{lem:oracle_rate} and \ref{lem:bias_rate}:
+\begin{align}
+    S_n &= O_P(n^{-1/2}), \\
+    B_n &= O_P(r_n) + O_P((r_n^m + r_n^\ell)/\sqrt{n}).
+\end{align}
+
+Under the assumption $r_n^m, r_n^\ell = o(1)$, the dominant terms are:
+\begin{equation}
+    S_n + B_n = O_P(n^{-1/2}) + O_P(r_n).
+\end{equation}
+
+Since $\widehat{\kappa} \pto \kappa_n$ (which may grow with $n$):
+\begin{align}
+    \widehat{\theta} - \theta_0 &= O_P(\kappa_n) \cdot O_P(1) \cdot \left( O_P(n^{-1/2}) + O_P(r_n) \right) \\
+    &= O_P\left( \frac{\kappa_n}{\sqrt{n}} + \kappa_n \cdot r_n \right).
+\end{align}
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{Conditioning Regimes}
+\label{app:regimes}
+% --------------------------------------------------------------------------
+
+We now formally define conditioning regimes based on the rate of $\kappa_n$.
+
+\begin{definition}[Conditioning Regimes]\label{def:regimes}
+Let $\kappa_n$ denote the condition number (which may depend on sample size 
+through the DGP). We define three regimes:
+
+\textbf{(i) Well-Conditioned Regime:} $\kappa_n = O_P(1)$.
+
+In this regime, $\kappa$ is bounded in probability. The estimator error is:
+\begin{equation}
+    \widehat{\theta} - \theta_0 = O_P(n^{-1/2}) + O_P(r_n).
+\end{equation}
+Under the product-rate condition $r_n = o(n^{-1/2})$, we obtain:
+\begin{equation}
+    \sqrt{n}(\widehat{\theta} - \theta_0) = O_P(1),
+\end{equation}
+and standard $\sqrt{n}$-asymptotics apply.
+
+\textbf{(ii) Moderately Ill-Conditioned Regime:} $\kappa_n = O_P(n^\gamma)$ for $0 < \gamma < 1/2$.
+
+The estimator error is:
+\begin{equation}
+    \widehat{\theta} - \theta_0 = O_P(n^{\gamma - 1/2}) + O_P(n^\gamma \cdot r_n).
+\end{equation}
+The oracle term $n^{\gamma - 1/2} \to 0$ as $n \to \infty$. The bias term 
+$n^\gamma \cdot r_n$ may or may not vanish depending on how fast $r_n \to 0$.
+
+\textbf{(iii) Severely Ill-Conditioned Regime (Critical Frontier):} $\kappa_n \asymp \sqrt{n}$.
+
+This is the ``critical frontier'' where:
+\begin{equation}
+    \widehat{\theta} - \theta_0 = O_P(1) + O_P(\sqrt{n} \cdot r_n).
+\end{equation}
+Even the oracle term is $O_P(1)$---the estimator does not converge. If 
+$r_n = n^{-1/4}$ (typical for nonparametric estimators in moderate dimensions), 
+then $\sqrt{n} \cdot r_n = n^{1/4} \to \infty$: bias \emph{diverges}.
+\end{definition}
+
+\begin{corollary}[Critical Rate for Valid Inference]\label{cor:critical}
+For $\sqrt{n}$-consistent inference to hold, the following condition is necessary:
+\begin{equation}
+    \kappa_n \cdot r_n = o(n^{-1/2}).
+\end{equation}
+This can be rewritten as:
+\begin{equation}
+    r_n = o\left( \frac{1}{\kappa_n \sqrt{n}} \right).
+\end{equation}
+When $\kappa_n$ is large, nuisance estimators must converge \emph{faster} to 
+maintain valid inference.
+\end{corollary}
+
+% ==========================================================================
+\subsection{Connection to Riesz Representers}
+\label{app:riesz}
+% ==========================================================================
+
+We now establish the deep connection between the condition number $\kappa$ 
+and the Riesz representer, grounding our analysis in modern semiparametric 
+theory.
+
+% --------------------------------------------------------------------------
+\subsubsection{The Riesz Representer for PLR}
+\label{app:riesz_def}
+% --------------------------------------------------------------------------
+
+\begin{definition}[Riesz Representer]\label{def:riesz}
+The \textbf{Riesz representer} for the functional $\theta_0 = \E[D \cdot \alpha_0(W)]$ 
+in the PLR model is the function $\alpha_0: \mathcal{W} \to \R$ satisfying:
+\begin{equation}
+    \E[\alpha_0(W) \cdot f(X)] = 0 \quad \text{for all } f \in L^2(P_X),
+\end{equation}
+and
+\begin{equation}
+    \E[\alpha_0(W) \cdot D] = 1.
+\end{equation}
+\end{definition}
+
+\begin{lemma}[Explicit Form of Riesz Representer]\label{lem:riesz_form}
+In the PLR model, the Riesz representer is:
+\begin{equation}
+    \alpha_0(W) = \frac{V}{\E[V^2]} = \frac{D - m_0(X)}{\sigma_V^2}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+We verify the two conditions.
+
+\textbf{Condition 1:} For any $f \in L^2(P_X)$:
+\begin{align}
+    \E[\alpha_0(W) \cdot f(X)] &= \E\left[ \frac{V}{\sigma_V^2} \cdot f(X) \right] \\
+    &= \frac{1}{\sigma_V^2} \E[V f(X)] \\
+    &= \frac{1}{\sigma_V^2} \E[\E[V \mid X] \cdot f(X)] \\
+    &= \frac{1}{\sigma_V^2} \E[0 \cdot f(X)] = 0. \quad \checkmark
+\end{align}
+
+\textbf{Condition 2:}
+\begin{align}
+    \E[\alpha_0(W) \cdot D] &= \E\left[ \frac{V}{\sigma_V^2} \cdot D \right] \\
+    &= \frac{1}{\sigma_V^2} \E[V \cdot D] \\
+    &= \frac{1}{\sigma_V^2} \E[V \cdot (m_0(X) + V)] \\
+    &= \frac{1}{\sigma_V^2} \left( \E[V m_0(X)] + \E[V^2] \right) \\
+    &= \frac{1}{\sigma_V^2} \left( \E[\E[V \mid X] m_0(X)] + \sigma_V^2 \right) \\
+    &= \frac{1}{\sigma_V^2} \left( 0 + \sigma_V^2 \right) = 1. \quad \checkmark
+\end{align}
+\end{proof}
+
+% --------------------------------------------------------------------------
+\subsubsection{Riesz Representer Norm and $\kappa$}
+\label{app:riesz_norm}
+% --------------------------------------------------------------------------
+
+\begin{theorem}[Condition Number as Riesz Norm]\label{thm:riesz_kappa}
+The condition number equals the squared $L^2$ norm of the Riesz representer 
+times the treatment variance:
+\begin{equation}
+    \boxed{\kappa = \sigma_D^2 \cdot \|\alpha_0\|_{L^2}^2.}
+\end{equation}
+Equivalently:
+\begin{equation}
+    \|\alpha_0\|_{L^2}^2 = \frac{\kappa}{\sigma_D^2} = \frac{1}{\sigma_V^2}.
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+The squared $L^2$ norm of the Riesz representer is:
+\begin{align}
+    \|\alpha_0\|_{L^2}^2 &= \E[\alpha_0(W)^2] = \E\left[ \left( \frac{V}{\sigma_V^2} \right)^2 \right] \\
+    &= \frac{1}{(\sigma_V^2)^2} \E[V^2] = \frac{\sigma_V^2}{(\sigma_V^2)^2} = \frac{1}{\sigma_V^2}.
+\end{align}
+
+Therefore:
+\begin{equation}
+    \sigma_D^2 \cdot \|\alpha_0\|_{L^2}^2 = \sigma_D^2 \cdot \frac{1}{\sigma_V^2} = \frac{\sigma_D^2}{\sigma_V^2} = \kappa.
+\end{equation}
+\end{proof}
+
+\begin{remark}[Semiparametric Interpretation]\label{rem:semipar}
+The Riesz representer $\alpha_0$ is the ``correction'' needed to debias 
+the naive regression coefficient. Its norm measures how much correction 
+is required---when $\|\alpha_0\|_{L^2}^2$ is large, the correction is 
+substantial, and inference becomes fragile.
+
+The connection $\kappa = \sigma_D^2 \|\alpha_0\|_{L^2}^2$ shows that:
+\begin{itemize}
+    \item Large $\kappa$ corresponds to large Riesz norm, which corresponds 
+    to poor overlap;
+    \item The condition number is a finite-sample diagnostic for the 
+    abstract semiparametric quantity $\|\alpha_0\|_{L^2}^2$.
+\end{itemize}
+This grounds our practical diagnostic in the theoretical framework of 
+\citet{chernozhukov2022riesz}.
+\end{remark}
+
+% --------------------------------------------------------------------------
+\subsubsection{Efficiency Bound Connection}
+\label{app:efficiency}
+% --------------------------------------------------------------------------
+
+\begin{theorem}[Condition Number and Efficiency Bound]\label{thm:efficiency}
+The semiparametric efficiency bound for estimating $\theta_0$ in the PLR model 
+is:
+\begin{equation}
+    V_{\mathrm{eff}} = \frac{\E[V^2 \varepsilon^2]}{(\E[V^2])^2} = \frac{\E[V^2 \varepsilon^2]}{(\sigma_V^2)^2}.
+\end{equation}
+Under homoskedasticity ($\E[\varepsilon^2 \mid X] = \sigma_\varepsilon^2$):
+\begin{equation}
+    V_{\mathrm{eff}} = \frac{\sigma_\varepsilon^2}{\sigma_V^2} = \frac{\sigma_\varepsilon^2 \kappa}{\sigma_D^2}.
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+The efficiency bound for a moment condition $\E[\psi(W; \theta_0)] = 0$ is:
+\begin{equation}
+    V_{\mathrm{eff}} = \frac{\E[\psi(W; \theta_0)^2]}{(\partial_\theta \E[\psi(W; \theta, \eta_0)]|_{\theta=\theta_0})^2}.
+\end{equation}
+
+For the PLR score $\psi(W; \theta_0, \eta_0) = V \varepsilon$:
+\begin{align}
+    \E[\psi(W; \theta_0)^2] &= \E[V^2 \varepsilon^2], \\
+    \partial_\theta \E[\psi(W; \theta, \eta_0)] &= -\E[V^2] = -\sigma_V^2.
+\end{align}
+
+Therefore:
+\begin{equation}
+    V_{\mathrm{eff}} = \frac{\E[V^2 \varepsilon^2]}{(\sigma_V^2)^2}.
+\end{equation}
+
+Under homoskedasticity:
+\begin{align}
+    \E[V^2 \varepsilon^2] &= \E[\E[V^2 \varepsilon^2 \mid X]] = \E[V^2 \E[\varepsilon^2 \mid X]] \\
+    &= \E[V^2 \sigma_\varepsilon^2] = \sigma_\varepsilon^2 \sigma_V^2.
+\end{align}
+
+Thus:
+\begin{equation}
+    V_{\mathrm{eff}} = \frac{\sigma_\varepsilon^2 \sigma_V^2}{(\sigma_V^2)^2} = \frac{\sigma_\varepsilon^2}{\sigma_V^2} 
+    = \sigma_\varepsilon^2 \cdot \frac{1}{\sigma_V^2} = \sigma_\varepsilon^2 \cdot \frac{\kappa}{\sigma_D^2}.
+\end{equation}
+\end{proof}
+
+This theorem shows that as $\kappa \to \infty$ (i.e., as $R^2(D \mid X) \to 1$), 
+the efficiency bound $V_{\mathrm{eff}} \to \infty$. The treatment effect becomes 
+unidentifiable in the limit, and our condition number $\kappa$ quantifies the 
+distance from this boundary.
+
+% ==========================================================================
+\subsection{Summary of Main Results}
+\label{app:summary}
+% ==========================================================================
+
+We conclude this mathematical appendix by summarizing the key theoretical 
+results.
+
+\begin{enumerate}
+    \item \textbf{Definition (Condition Number):} 
+    \begin{equation}
+        \kappa := \frac{\Var(D)}{\E[\Var(D \mid X)]} = \frac{1}{1 - R^2(D \mid X)}.
+    \end{equation}
+    This is the Variance Inflation Factor, a dimensionless measure of 
+    treatment predictability.
+    
+    \item \textbf{Lemma (Exact Decomposition):}
+    \begin{equation}
+        \widehat{\theta} - \theta_0 = \widehat{\kappa} \cdot \left( S_n' + B_n' \right),
+    \end{equation}
+    where $S_n' = S_n/\widehat{\sigma}_D^2$ is the standardized oracle term and 
+    $B_n' = B_n/\widehat{\sigma}_D^2$ is the standardized bias term.
+    
+    \item \textbf{Theorem (Bias Amplification):} The term 
+    $\widehat{\kappa} \cdot B_n'$ is the \emph{bias amplification} term. When 
+    $\kappa$ is large and nuisance estimators are regularized (so $B_n \neq 0$), 
+    this term can dominate the oracle sampling error, causing severe bias 
+    even when standard errors appear small.
+    
+    \item \textbf{Theorem (Finite-Sample Bound):}
+    \begin{equation}
+        \widehat{\theta} - \theta_0 = O_P\left( \frac{\kappa_n}{\sqrt{n}} + \kappa_n \cdot r_n \right).
+    \end{equation}
+    
+    \item \textbf{Corollary (Critical Rate):} Valid $\sqrt{n}$-inference requires:
+    \begin{equation}
+        \kappa_n \cdot r_n = o(n^{-1/2}).
+    \end{equation}
+    
+    \item \textbf{Theorem (Riesz Connection):}
+    \begin{equation}
+        \kappa = \sigma_D^2 \cdot \|\alpha_0\|_{L^2}^2,
+    \end{equation}
+    linking the diagnostic $\kappa$ to the abstract semiparametric quantity 
+    (Riesz representer norm) that governs efficiency.
+\end{enumerate}
+
+These results provide the theoretical foundation for the $\kappa$ diagnostic: 
+it signals not just variance inflation (the classical VIF effect) but also 
+bias amplification (the new DML-specific failure mode).
