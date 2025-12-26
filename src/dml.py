@@ -271,10 +271,14 @@ class DMLEstimator:
         var_component = np.mean(V_hat ** 2 * eps_hat ** 2)
         var_hat = (n / sum_V_sq) ** 2 * var_component / n
         
-        # Standardized condition number: κ* = 1 / (1 - R²(D|X))
+        # Standardized condition number: κ* = 1 / (1 - R²₊(D|X))
+        # where R²₊ := max{0, R²} ensures κ* ≥ 1
+        # R² = 1 - Var(V̂)/Var(D), so R²₊ = max{0, 1 - Var(V̂)/Var(D)}
         # κ* = n·Var(D) / Σ V̂² = Σ(D - D̄)² / Σ V̂²
         var_D = np.var(D)
-        kappa_star = (n * var_D) / sum_V_sq
+        kappa_raw = (n * var_D) / sum_V_sq
+        # Clamp to ensure κ* ≥ 1 (equivalent to using R²₊ = max{0, R²})
+        kappa_star = np.maximum(1.0, kappa_raw)
         
         # Nuisance MSE (if true values provided)
         if m0_X is not None:
@@ -294,7 +298,9 @@ class DMLEstimator:
             V_true = D - m0_X  # True treatment residual
             sum_V_true_sq = np.sum(V_true ** 2)
             if sum_V_true_sq > 1e-12:
-                structural_kappa = (n * var_D) / sum_V_true_sq
+                structural_kappa_raw = (n * var_D) / sum_V_true_sq
+                # Clamp to ensure structural_kappa ≥ 1
+                structural_kappa = np.maximum(1.0, structural_kappa_raw)
             else:
                 structural_kappa = np.inf
         else:

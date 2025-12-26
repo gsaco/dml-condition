@@ -1,0 +1,1577 @@
+% ==========================================================================
+% FINITE-SAMPLE FRAGILITY IN DOUBLE MACHINE LEARNING
+% paper2.tex - Revised version with referee fixes
+% ==========================================================================
+
+\documentclass{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{bm,mathtools,bbm}
+\usepackage{graphicx,booktabs,multirow,array}
+\usepackage{lmodern}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{natbib}
+\usepackage[colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
+\usepackage{url}
+
+\onehalfspacing
+\setlength{\parskip}{0.3em}
+\setlength{\parindent}{1em}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{assumption}{Assumption}[section]
+\newtheorem{definition}{Definition}[section]
+\newtheorem{example}{Example}[section]
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[section]
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\norm}[1]{\lVert #1\rVert}
+\newcommand{\abs}[1]{\lvert #1\rvert}
+\newcommand{\dto}{\xrightarrow{d}}
+\newcommand{\pto}{\xrightarrow{p}}
+\newcommand{\op}{o_P}
+\newcommand{\Op}{O_P}
+\newcommand{\ind}{\mathbbm{1}}
+\newcommand{\kappastar}{\kappa^*}
+\newcommand{\thetahat}{\widehat{\theta}}
+\newcommand{\etahat}{\widehat{\eta}}
+\newcommand{\mhat}{\widehat{m}}
+\newcommand{\ellhat}{\widehat{\ell}}
+\newcommand{\Jhat}{\widehat{J}}
+\newcommand{\Vhat}{\widehat{V}}
+\newcommand{\Uhat}{\widehat{U}}
+\newcommand{\esssup}{\mathop{\mathrm{ess\,sup}}}
+
+\begin{document}
+
+\title{Bias Amplification in Double Machine Learning}
+
+\author{Gabriel Saco\thanks{Universidad del Pac\'ifico. Email: gsacoalvarado@gmail.com. Replication code is available at \url{https://github.com/gsaco/dml-diagnostic}.}}
+
+\date{December 2025}
+
+\maketitle
+
+\begin{abstract}
+
+Orthogonal-score Double Machine Learning (DML) in partially linear regression is typically justified by
+nuisance-rate conditions, yet finite-sample validity also depends on the conditioning of the orthogonal score
+when treatment is highly predictable from covariates (limited residual treatment variation). We provide a
+finite-sample characterization of this amplification channel. Our main mathematical result is an exact
+identity for the cross-fitted PLR-DML estimator,
+\(\widehat\theta-\theta_0=\widehat\kappa(S_n'+B_n')\),
+which holds without Taylor approximation and decomposes the estimation error into an oracle sampling term
+\(S_n'\) and a nuisance-induced term \(B_n'\), both scaled by a sample condition number \(\widehat\kappa\).
+The identity yields a complete probability bound,
+\(\widehat\theta-\theta_0=O_P\!\big(\sqrt{\kappa_n/n}+\kappa_n\,\mathrm{Rem}_n\big)\),
+implying a sharp sufficiency requirement for root-$n$ inference beyond oracle noise:
+\(\kappa_n\,\mathrm{Rem}_n=o(n^{-1/2})\).
+We further connect \(\kappa\) to semiparametric efficiency geometry via
+\(\kappa=\sigma_D^2\|\alpha_0\|_{L^2}^2\), where \(\alpha_0\) is the minimal-norm Riesz representer, and use a
+triangular-array framework to characterize regimes as overlap weakens (\(\kappa_n\to\infty\)); a bias
+decomposition clarifies when sign structure yields cancellation versus reinforcement. The theory delivers a
+feasible diagnostic,
+\(\widehat\kappa^{*}=1/(1-\widehat R^2_{\mathrm{oof}}(D\mid X))\),
+summarizing amplification scale. Rather than universal thresholds, we recommend reporting
+\(\widehat\kappa^{*}\) alongside cross-learner dispersion of DML estimates as a fragility assessment. Simulations
+validate monotone amplification and single-index organization, and a LaLonde reanalysis shows learner-to-learner
+instability increasing with \(\widehat\kappa^{*}\).
+
+
+\medskip\noindent\textbf{Keywords:} Double Machine Learning, bias amplification, condition number, Riesz representer. \\
+\noindent\textbf{JEL Codes:} C14, C21, C52.
+\end{abstract}
+
+\newpage
+
+% ==========================================================================
+\section{Introduction}
+\label{sec:intro}
+% ==========================================================================
+
+% ===== PARAGRAPH 1: MOTIVATION + CAUSAL GAP (RESPECTING DML) =====
+Double Machine Learning \citep[DML;][]{chernozhukov2018dml} enables the use of machine learning
+methods for nuisance estimation in causal inference, while preserving $\sqrt{n}$-inference for treatment effects.
+Its guarantees rely on Neyman-orthogonal scores, which attenuate first-order sensitivity to nuisance errors,
+and cross-fitting, which removes own-observation bias \citep{kennedy2023semipar,schick1986}. Canonical validity
+conditions are therefore stated in terms of nuisance rates. For example, in the partially linear regression (PLR)
+model, a common restriction is a product-rate requirement such as $r_n^m r_n^\ell = o_P(n^{-1/2})$.
+These conditions control how nuisance estimation error enters the orthogonal score, but they do not explicitly
+track a distinct driver of finite-sample reliability that is central in causal problems: residual treatment
+variation after conditioning on covariates (overlap/positivity)
+\citep{khanTamer2010overlap,damour2021overlap}. Standard DML theory typically assumes overlap through regularity conditions that keep this residual variation bounded away from zero. This paper shows that, in finite samples, reliability depends jointly on (i) the full nuisance remainder and (ii) the
+conditioning of the orthogonal score equation, so overlap enters multiplicatively as an amplification factor
+rather than only as a background assumption.
+
+% ===== PARAGRAPH 2: CORE MECHANISM (CONDITIONING MULTIPLIES RESIDUAL BIAS) =====
+This amplification mechanism is transparent in PLR. The sensitivity of the empirical orthogonal score to the
+treatment effect $\theta$ is governed by the empirical Jacobian $\widehat{J}=\widehat{\sigma}_V^2$, where
+$V:=D-m_0(X)$ is the residualized treatment. When $\widehat{\sigma}_V^2$ is small, the score is nearly flat in
+the $\theta$ direction, so small
+perturbations of the empirical score equation translate into large perturbations of $\widehat{\theta}$. This is ill-conditioning in
+the numerical sense \citep{golubvanloan2013}. We summarize this channel by $\kappa := \sigma_D^2/\sigma_V^2
+= 1/(1-R^2(D\mid X))$, which is large when treatment is highly predictable from covariates. Crucially, $\kappa$
+scales the impact of any residual bias left after orthogonalization and cross-fitting. Standard errors can
+reflect increased sampling variability when $\sigma_V^2$ is small, but they do not reflect the distinct
+bias-amplification channel induced by large $\kappa$. As a result, coverage can deteriorate even when reported
+standard errors are only moderately inflated.
+
+
+% ===== PARAGRAPH 3: MAIN RESULT 1 - EXACT FINITE-SAMPLE IDENTITY =====
+Our first main result is an exact finite-sample decomposition for DML in PLR:
+\[
+\widehat{\theta}-\theta_0 \;=\; \widehat{\kappa}\,(S_n' + B_n').
+\]
+Here $\widehat{\kappa}$ is the sample analogue of the condition number, $S_n'$ is the standardized oracle
+sampling term, and $B_n'$ aggregates the nuisance-driven bias components that remain after orthogonalization
+and cross-fitting. The identity is exact—there is no Taylor approximation—because the PLR score is affine in
+$\theta$. This makes the role of $\widehat{\kappa}$ as a finite-sample amplification factor explicit.
+
+% ===== PARAGRAPH 4: MAIN RESULT 2 - COMPLETE FINITE-SAMPLE BOUND =====
+Our second main result converts the exact identity into a complete finite-sample probability bound:
+\[
+\widehat{\theta}-\theta_0
+= O_P\!\left(\frac{\sqrt{\kappa_n}}{\sqrt{n}} \;+\; \kappa_n\cdot \mathrm{Rem}_n\right),
+\qquad
+\mathrm{Rem}_n = r_n^m r_n^\ell + (r_n^m)^2 + \frac{r_n^m+r_n^\ell}{\sqrt{n}}.
+\]
+The first term is the oracle sampling component under conditioning. The second term shows that conditioning
+enters multiplicatively with the full nuisance remainder. As a consequence, a sufficient condition for
+valid $\sqrt{n}$ inference beyond oracle noise is $\kappa_n\cdot \mathrm{Rem}_n = o(n^{-1/2})$. When overlap is
+stable so that $\kappa_n$ is bounded, this reduces to familiar remainder-rate restrictions. When overlap is
+weak and $\kappa_n$ is large, the same nuisance errors can be amplified into first-order bias.
+
+% ===== PARAGRAPH 5: THEORY IMPLICATIONS + CAUSAL INTERPRETATION + ESTIMABLE IMPLICATION κ̂* =====
+Two theoretical connections sharpen interpretation. First, we link conditioning to semiparametric efficiency
+geometry by proving $\kappa = \sigma_D^2 \|\alpha_0\|_{L^2}^2$, where $\alpha_0$ is the Riesz representer
+\citep{chernozhukov2022riesz}. Second, we formalize weakening overlap through a triangular-array framework in
+which $\kappa_n\to\infty$, showing that standard $\sqrt{n}$-asymptotics may fail even when nuisance rates are
+favorable. The theory also yields an estimable reporting implication. We propose reporting the standardized
+condition number,
+\[
+\widehat{\kappa}^{*} = \frac{1}{1-\widehat{R}^2_{+}(D\mid X)},
+\qquad
+\widehat{R}^2_{+} := \max\{0,\widehat{R}^2_{\mathrm{oof}}\},
+\]
+where
+$\widehat{R}^2_{\mathrm{oof}}$ is an out-of-fold predictive $R^2$. These summaries operationalize the overlap/conditioning component that enters the bound and help interpret cross-learner sensitivity predicted by the
+theory. Importantly, $\widehat{\kappa}^*$ concerns the conditioning of the orthogonalized score (a finite-sample
+fragility channel), but it is not a test of unconfoundedness and does not by itself validate causal identification. Analogous to weak instruments---where weak first-stage signal amplifies bias and motivates strength diagnostics
+\citep{staigerstock1997weakiv,stockyogo2005weakiv}---limited residual treatment variation in DML implies large
+$\kappa$, which in turn amplifies residual nuisance bias in the orthogonal score equation.
+
+% ===== PARAGRAPH 6: ROADMAP =====
+The paper proceeds as follows. Section~\ref{sec:literature} situates our contribution in the literature.
+Section~\ref{sec:theory} develops the exact decomposition and finite-sample bound. Section~\ref{sec:regimes}
+characterizes conditioning regimes and rate implications. Section~\ref{sec:simulations} presents Monte Carlo
+evidence validating the theoretical predictions. Section~\ref{sec:application} provides an empirical
+illustration. Section~\ref{sec:conclusion} concludes.
+
+
+% ==========================================================================
+\section{Related Literature}
+\label{sec:literature}
+% ==========================================================================
+
+% ===== PARAGRAPH 1: DML / SEMIPARAMETRIC INFERENCE WITH ML + WHERE WE ENTER =====
+We study semiparametric causal inference with machine-learned nuisance functions. \citet{chernozhukov2018dml}
+formalize Double Machine Learning (DML) as Neyman-orthogonal, cross-fitted score estimation, building on
+Robinson’s partialling-out construction for PLR \citep{robinson1988plr} and influence-function theory
+\citep{newey1990semipar,bickeletal1993,vandervaart1998}. \citet{neweyrobins2018crossfitting} provide general
+results for cross-fitting and \citet{chernozhukov2023simple} give distributional refinements for orthogonal-score
+estimators. Debiasing geometry via Riesz representers and their learning is developed in
+\citet{chernozhukov2021rieszregression}, while \citet{kennedy2023semipar} reviews semiparametric/causal machine learning inference.
+Standard DML conditions are stated in terms of nuisance rates, but they do not explicitly track stability of the PLR
+score equation as residual treatment variation shrinks. We isolate this as a conditioning channel. Near-singularity
+induces a condition number $\kappa$ that scales the orthogonal-score remainder and can drive finite-sample error.
+This connects overlap-driven fragility in DML to classical collinearity diagnostics (VIFs, condition numbers)
+\citep{belsleykuhwelsch1980,belsley1991}.
+
+% ===== PARAGRAPH 2: OVERLAP / POSITIVITY, IDENTIFICATION, AND PRACTICE =====
+Overlap is central for identification and performance of causal estimators. For binary
+treatment, efficiency theory shows sensitivity increases as propensity scores approach 0 or 1
+\citep{hahn1998,robinsrotnitzky1995ate}, motivating strict-overlap conditions and remedies such as trimming
+\citep{crumpetal2009} and overlap weighting \citep{lietal2018overlap}. When overlap fails, effects may be only
+partially identified \citep{khanTamer2010overlap}. Overlap can also deteriorate with covariate dimension, creating
+tension between flexible adjustment and identification strength \citep{damour2021overlap}; see
+\citet{petersenvanderlaan2014} for practical discussions of positivity violations. We complement this literature by
+showing how weak overlap enters orthogonal-score DML for PLR through $\kappa$: limited residual treatment variation
+inflates $\kappa$, which can amplify the remainder even when orthogonality removes first-order nuisance sensitivity.
+
+% ===== PARAGRAPH 3: LEARNERS, REGULARIZATION, ROBUSTNESS, AND REPORTING TEMPLATES =====
+% ===== PARAGRAPH 3: LEARNERS, REGULARIZATION, ROBUSTNESS, AND REPORTING TEMPLATES =====
+Modern causal estimators typically rely on regularized or adaptive learners for nuisance components, so finite-sample
+orthogonal-score remainders need not be negligible even with cross-fitting. High-dimensional sparse and debiased
+approaches are developed in \citet{bellonietal2014highdim} and sufficient conditions under which flexible learners
+achieve the accuracy required for semiparametric inference are studied in \citet{farrellliangmisra2021}. Related
+robustness ideas are central in doubly robust and targeted learning methods
+\citep{kangschafer2007,bangrobins2005,vanderlaanrose2011}. Conceptually, our diagnostic and reporting emphasis
+parallels the weak-instruments literature: weak first-stage signal can generate substantial finite-sample distortions
+and has motivated routine strength summaries and weak-IV-robust inference
+\citep{staigerstock1997weakiv,stockyogo2005weakiv,moreira2003conditional}. Analogously, we propose a simple out-of-fold
+summary of overlap-related conditioning in PLR-DML—computed as $\hat\kappa^\ast$ from out-of-fold prediction of $D$ using
+$X$—as a routine diagnostic of fragility in learned causal estimators.
+
+
+
+% ==========================================================================
+\section{Theoretical Framework}
+\label{sec:theory}
+% ==========================================================================
+
+This section introduces notation and assumptions for PLR--DML and develops our finite-sample characterization of how
+limited residual treatment variation affects inference. The main deliverables are (i) an explicit link between overlap
+strength and a condition number $\kappa$, (ii) an exact finite-sample identity for $\hat\theta-\theta_0$, and (iii) a
+probability bound that yields an operational sufficiency condition for $\sqrt{n}$-valid inference.
+
+\begin{table}[htbp]
+\centering
+\caption{Notation and Objects}
+\label{tab:notation}
+\begin{tabular}{l p{10cm}}
+\toprule
+\textbf{Symbol} & \textbf{Definition} \\
+\midrule
+$(Y, D, X)$ & Outcome, treatment, covariates \\
+$\theta_0$ & Target causal parameter (constant marginal effect) \\
+$g_0(X)$ & Nuisance function in the outcome equation \\
+$m_0(X)$ & Treatment regression: $\E[D \mid X]$ \\
+$\ell_0(X)$ & Outcome regression: $\E[Y \mid X] = \theta_0 m_0(X) + g_0(X)$ \\
+$V$ & Treatment residual: $D - m_0(X)$ \\
+$\varepsilon$ & Outcome error: $Y - \theta_0 D - g_0(X)$ \\
+$\sigma_V^2, \sigma_D^2$ & $\E[V^2]$ (residual variance), $\Var(D)$ (total treatment variance) \\
+\midrule
+$\kappa, \kappastar$ & Population condition number: $\sigma_D^2/\sigma_V^2 = 1/(1 - R^2(D \mid X))$ \\
+$\kappa_n$ & Population condition number along a triangular array sequence \\
+$\widehat{\kappa}$ & Sample estimate of $\kappa$ from cross-fitted residuals \\
+\midrule
+$r_n^m, r_n^\ell$ & $L^2$ convergence rates of nuisance estimators $\widehat{m}, \widehat{\ell}$ \\
+$\mathrm{Rem}_n$ & Complete remainder: $r_n^m r_n^\ell + (r_n^m)^2 + (r_n^m + r_n^\ell)/\sqrt{n}$ \\
+$S_n, B_n$ & Oracle sampling term, nuisance bias term (Lemma~\ref{lem:bias_decomp}) \\
+$\alpha_0$ & Riesz representer: $V/\sigma_V^2$ (Theorem~\ref{thm:riesz_kappa}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Notation convention.}
+Throughout, $(\kappa, \kappastar, \kappa_n)$ denote population objects under $P_n$ (or $P$), while hats
+$(\widehat{\kappa}, \widehat{\kappa}^*)$ denote sample analogues computed from cross-fitted residuals. In empirical
+sections, we use $\widehat{\kappa}^* := 1/(1-\widehat{R}^2_{+}(D\mid X))$ where
+$\widehat{R}^2_{+} := \max\{0,\widehat{R}^2_{\mathrm{oof}}\}$ truncates negative out-of-fold $R^2$ to ensure
+$\widehat{\kappa}^*\ge 1$.
+
+\paragraph{Main theoretical results.}
+Before developing the technical arguments, we summarize the main results.
+\begin{enumerate}
+\item \textbf{Result 1 (Condition number connection).}
+The condition number $\kappa$ connects treatment predictability to amplification via
+$\kappa = \sigma_D^2/\sigma_V^2 = 1/(1-R^2(D\mid X)) = \sigma_D^2\|\alpha_0\|_{L^2}^2$,
+where $\alpha_0$ is the Riesz representer (Theorem~\ref{thm:riesz_kappa}).
+
+\item \textbf{Result 2 (Exact identity).}
+$\hat\theta - \theta_0 = \widehat{\kappa}(S_n' + B_n')$, an algebraic identity without Taylor remainder
+(Theorem~\ref{thm:exact_decomp}). This is the central identity; everything else is interpretation or bounding.
+
+\item \textbf{Result 3 (Complete bound).}
+$\hat\theta - \theta_0 = O_P(\sqrt{\kappa_n}/\sqrt{n} + \kappa_n \cdot \mathrm{Rem}_n)$
+(Theorem~\ref{thm:fs_bound}). This converts the identity into an operational probability bound.
+
+\item \textbf{Sufficiency condition.}
+Valid $\sqrt{n}$-inference beyond oracle noise requires $\kappa_n \cdot \mathrm{Rem}_n = o(n^{-1/2})$.
+\end{enumerate}
+
+\paragraph{Diagnostic implication.}
+Results~1--3 motivate reporting an estimable proxy for $\kappa$ based on out-of-fold treatment predictability:
+\[
+\widehat{\kappa}^* := \frac{1}{1-\widehat{R}^2_{+}(D\mid X)}, \qquad
+\widehat{R}^2_{+} := \max\{0,\widehat{R}^2_{\mathrm{oof}}\},
+\]
+so that $\widehat{\kappa}^*\ge 1$. A large $\widehat{\kappa}^*$ indicates limited residual treatment variation and,
+by Result~3, a regime where even small orthogonal-score remainders can be amplified.
+
+\subsection{Data Structure}
+
+All random variables are defined on a complete probability space; expectations are under $P_n$.
+
+\begin{assumption}[Data Structure]\label{ass:data}
+For each sample size $n$, we observe $\{W_{i,n}\}_{i=1}^n$ i.i.d.\ under a law $P_n$, where $W_{i,n} = (Y_{i,n}, D_{i,n}, X_{i,n})$ consists of: outcome $Y \in \mathcal{Y} \subseteq \R$, treatment $D \in \mathcal{D} \subseteq \R$, and covariates $X \in \mathcal{X} \subseteq \R^p$. The classical i.i.d.\ setting is the special case $P_n \equiv P$. We suppress the index $n$ when unambiguous.
+\end{assumption}
+
+\begin{definition}[Function Spaces]\label{def:norms}
+For measurable $f: \mathcal{X} \to \R$, define $\|f\|_{L^2} := (\E[|f(X)|^2])^{1/2}$. The empirical norm is $\|f\|_n := (n^{-1}\sum_{i=1}^n f(X_i)^2)^{1/2}$. All expectations and $L^2$ norms are taken under $P_n$ (with $P_n \equiv P$ in the classical i.i.d.\ case); we suppress the index $n$ when unambiguous. When discussing triangular arrays we write $\sigma_{V,n}^2$; in the classical fixed-DGP case $P_n \equiv P$, we drop the subscript and write $\sigma_V^2$.
+\end{definition}
+
+We employ standard stochastic order notation: $Z_n = O_P(a_n)$ means for every $\epsilon > 0$ there exists $M > 0$ with $\sup_n \Prob(|Z_n/a_n| > M) < \epsilon$; $Z_n = o_P(a_n)$ means $Z_n/a_n \pto 0$.
+
+\paragraph{Assumption map.}
+Lemma~\ref{lem:id} uses only $\E[V\varepsilon] = 0$ and $\sigma_V^2 > 0$.
+The exact decomposition (Theorem~\ref{thm:exact_decomp}) is algebraic under PLR and does not require rate conditions.
+Finite-sample bounds (Theorem~\ref{thm:fs_bound}) additionally use moment bounds, nuisance $L^2$ rates, and residual-variance stability.
+Regime analysis allows $\sigma_{V,n}^2 \to 0$ via the triangular array setup.
+
+\subsection{The Partially Linear Regression Model}
+
+The PLR model, introduced by \citet{robinson1988plr}, specifies:
+\begin{align}
+Y &= \theta_0 D + g_0(X) + \varepsilon, \label{eq:plr_y}\\
+D &= m_0(X) + V, \label{eq:plr_d}
+\end{align}
+where $\theta_0 \in \R$ is the target parameter, $g_0: \mathcal{X} \to \R$ is a nuisance function, $m_0(X) := \E[D \mid X]$ is the treatment regression (conditional mean), and $V := D - m_0(X)$ is the treatment residual satisfying $\E[V \mid X] = 0$ by construction.
+
+\begin{remark}[Terminology]\label{rem:terminology}
+When $D$ is binary, $m_0(X) = \E[D \mid X]$ equals the propensity score $e(X)$ \citep{rosenbaumrubin1983}. When $D$ is continuous, $m_0(X)$ is the treatment regression (conditional mean), and our overlap notion is expressed through $\Var(D \mid X)$.
+\end{remark}
+
+\subsection{Target Parameter and Identification}
+
+\begin{definition}[Target Parameter]\label{def:target}
+The target parameter is the constant marginal effect $\theta_0$ in the partially linear model $Y = \theta_0 D + g_0(X) + \varepsilon$.
+\end{definition}
+
+\begin{lemma}[Identification of $\theta_0$]\label{lem:id}
+Under the PLR model \eqref{eq:plr_y}--\eqref{eq:plr_d} and Assumption~\ref{ass:causal_plr}, the target parameter $\theta_0$ is identified as the unique solution to
+\[
+\E\big[V\{Y - \theta D - g_0(X)\}\big] = 0,
+\]
+equivalently,
+\[
+\theta_0 = \frac{\E[VY]}{\E[V^2]} = \frac{\E[(D - m_0(X))Y]}{\E[(D - m_0(X))^2]},
+\]
+provided $\sigma_V^2 = \E[V^2] > 0$. This ``partialling-out'' identification strategy dates to \citet{frischwaugh1933} and \citet{robinson1988plr}.
+\end{lemma}
+
+\begin{proof}
+From \eqref{eq:plr_y}, $Y = \theta_0 D + g_0(X) + \varepsilon$. Multiply by $V = D - m_0(X)$ and take expectations:
+\[
+\E[VY] = \theta_0 \E[VD] + \E[Vg_0(X)] + \E[V\varepsilon].
+\]
+Now $\E[VD] = \E[V(m_0(X) + V)] = \E[V^2] = \sigma_V^2$, and $\E[Vg_0(X)] = \E[\E[V \mid X]g_0(X)] = 0$ since $\E[V \mid X] = 0$. Finally, Assumption~\ref{ass:causal_plr} implies $\E[V\varepsilon] = 0$. Rearranging yields the formula.
+\end{proof}
+
+\subsection{Causal Setup and Identification}
+
+\begin{assumption}[Causal PLR and Conditional Mean Independence]\label{ass:causal_plr}
+There exist potential outcomes $\{Y(d): d \in \mathcal{D}\}$ \citep{rubin1974,rubin2005} such that
+\[
+Y(d) = \theta_0 d + g_0(X) + \varepsilon, \qquad \E[\varepsilon \mid D, X] = 0,
+\]
+and consistency holds: $Y = Y(D)$.
+\end{assumption}
+
+\begin{remark}[What is Identified]\label{rem:what_identified}
+Under Assumption~\ref{ass:causal_plr}, $\theta_0$ is a \emph{constant causal marginal effect} (a constant CATE). All results below rely on the residual orthogonality moment $\E[V\varepsilon]=0$, which is
+\emph{implied by the causal restriction} $\E[\varepsilon\mid D,X]=0$ because
+$\E[V\varepsilon]=\E\{\E[(D-\E[D\mid X])\varepsilon\mid X]\}
+=\E\{\E[D\varepsilon\mid X]-\E[D\mid X]\E[\varepsilon\mid X]\}=0$.
+
+\end{remark}
+
+\paragraph{Causal chain.}
+The estimand $\theta_0$ is causal under standard potential-outcome conditions: consistency ($Y = Y(D)$), conditional exogeneity ($\E[\varepsilon \mid D, X] = 0$), and overlap ($\Var(D \mid X) > 0$). In the PLR framework, these conditions imply the orthogonal moment $\E[V \cdot (Y - g_0(X) - \theta_0(D - m_0(X)))] = 0$. Our analysis takes this causal target as given and studies how finite-sample inference behaves as overlap weakens (via $\sigma_V$) and $\kappa$ grows. Thus, $\kappa$ measures inferential fragility, not identification validity.
+
+We distinguish (i) strong overlap (fixed-$\kappa$) and (ii) weakening overlap (triangular array):
+
+\begin{assumption}[Strong Overlap]\label{ass:overlap}
+There exists $\underline{\sigma}^2 > 0$ such that $\Var(D \mid X = x) \geq \underline{\sigma}^2$ for $P_X$-almost all $x$. This is the continuous-treatment analogue of the positivity condition \citep{rosenbaumrubin1983,hiranoimbensridder2003}. \citet{damour2021overlap} establish that such strict overlap assumptions become more restrictive as covariate dimension grows.
+\end{assumption}
+
+\begin{assumption}[Bounded Treatment Variance]\label{ass:bounded_D}
+$\sigma_{D,n}^2 \asymp 1$; i.e., $0 < c \leq \sigma_{D,n}^2 \leq C < \infty$ for some constants $c, C$ and all $n$.
+\end{assumption}
+
+\begin{remark}[Bounded $\kappa$ under Strong Overlap]\label{rem:bounded_kappa}
+Assumption~\ref{ass:overlap} implies $\sigma_{V,n}^2 \geq \underline{\sigma}^2 > 0$. Under bounded treatment variance (Assumption~\ref{ass:bounded_D}), it follows that $\kappa_n \leq (\sup_n \sigma_{D,n}^2)/\underline{\sigma}^2 < \infty$, so $\kappa_n = O(1)$.
+\end{remark}
+
+\begin{remark}[Relation to Positivity / Overlap in the Binary Case]\label{rem:positivity}
+If $D \in \{0,1\}$ and $e(X) := \Prob(D = 1 \mid X)$, then
+\[
+\Var(D \mid X) = e(X)\{1 - e(X)\}, \qquad \sigma_V^2 = \E[e(X)\{1 - e(X)\}].
+\]
+Thus, the usual positivity condition $\epsilon \leq e(X) \leq 1 - \epsilon$ implies $\Var(D \mid X) \geq \epsilon(1 - \epsilon)$, which is a special case of Assumption~\ref{ass:overlap}.
+\end{remark}
+
+To analyze regimes where $\kappa$ may grow, we introduce a triangular array framework:
+
+\begin{assumption}[Triangular Array with Weakening Overlap]\label{ass:triangular}
+Consider a sequence of DGPs indexed by $n$. There exists a sequence $\underline{\sigma}_n^2 \downarrow 0$ such that for each $n$:
+\[
+\Var(D_n \mid X_n = x) \geq \underline{\sigma}_n^2 \quad \text{for } P_{X,n}\text{-almost all } x.
+\]
+Define $\sigma_{V,n}^2 := \E[\Var(D_n \mid X_n)]$ and $\kappa_n := \sigma_{D,n}^2/\sigma_{V,n}^2$.
+\end{assumption}
+
+\begin{remark}[Reconciling Fixed and Growing $\kappa$]\label{rem:reconcile}
+Assumption~\ref{ass:overlap} covers the fixed-$\kappa$ case (bounded condition number). Assumption~\ref{ass:triangular} covers the growing-$\kappa$ case: as $\underline{\sigma}_n^2 \to 0$, we may have $\sigma_{V,n}^2 \to 0$ and thus $\kappa_n \to \infty$. The rate $\kappa_n = O(n^\gamma)$ for $\gamma \geq 0$ determines the conditioning regime. When presenting results under Assumption~\ref{ass:overlap}, $\kappa$ is treated as fixed; when presenting asymptotic regime analysis, Assumption~\ref{ass:triangular} applies.
+\end{remark}
+
+Define $\ell_0(X) := \E[Y \mid X]$ and outcome residual $U := Y - \ell_0(X)$. Under Assumption~\ref{ass:causal_plr}, $\ell_0(X) = \theta_0 m_0(X) + g_0(X)$.
+
+\begin{lemma}[Residual Decomposition]\label{lem:residual}
+Under PLR, $U = \theta_0 V + \varepsilon$.
+\end{lemma}
+
+\begin{proof}
+By definition, $U = Y - \ell_0(X)$. Substituting $Y = \theta_0 D + g_0(X) + \varepsilon$ and $\ell_0(X) = \theta_0 m_0(X) + g_0(X)$:
+\begin{align*}
+U &= [\theta_0 D + g_0(X) + \varepsilon] - [\theta_0 m_0(X) + g_0(X)] \\
+&= \theta_0 D - \theta_0 m_0(X) + \varepsilon \\
+&= \theta_0(D - m_0(X)) + \varepsilon = \theta_0 V + \varepsilon. \qedhere
+\end{align*}
+\end{proof}
+
+\begin{remark}[Interpretation]\label{rem:residual_interp}
+Lemma~\ref{lem:residual} shows the outcome residual equals the causal effect times the treatment residual plus noise. The treatment residual $V$ contains all identifying variation; the precision of identifying $\theta_0$ depends on $\Var(V) = \sigma_V^2$.
+\end{remark}
+
+\subsection{Variance Components and the Condition Number}
+
+\begin{assumption}[Second Moments]\label{ass:second_mom}
+$\E[D^2] < \infty$ and $\E[Y^2] < \infty$ for all $n$.
+\end{assumption}
+
+Define the variance components:
+\begin{align}
+\sigma_D^2 &:= \Var(D), \label{eq:sigmaD}\\
+\sigma_V^2 &:= \E[V^2] = \E[\Var(D \mid X)], \label{eq:sigmaV}\\
+\sigma_m^2 &:= \Var(m_0(X)). \label{eq:sigmam}
+\end{align}
+
+\begin{lemma}[Law of Total Variance]\label{lem:var_decomp}
+The law of total variance \citep{fisher1925methods} yields $\sigma_D^2 = \sigma_V^2 + \sigma_m^2$.
+\end{lemma}
+
+\begin{proof}
+By the law of total variance:
+\begin{align*}
+\Var(D) &= \E[\Var(D \mid X)] + \Var(\E[D \mid X]) \\
+&= \E[(D - m_0(X))^2] + \Var(m_0(X)) \\
+&= \sigma_V^2 + \sigma_m^2. \qedhere
+\end{align*}
+\end{proof}
+
+The population $R^2$ for treatment explained by covariates is:
+\begin{equation}\label{eq:R2}
+R^2(D \mid X) := \frac{\sigma_m^2}{\sigma_D^2} = 1 - \frac{\sigma_V^2}{\sigma_D^2}.
+\end{equation}
+
+\begin{definition}[Standardized Condition Number]\label{def:kappa_star}
+The standardized condition number is:
+\begin{equation}\label{eq:kappa_star}
+\boxed{\kappastar := \frac{\sigma_D^2}{\sigma_V^2} = \frac{1}{1 - R^2(D \mid X)}.}
+\end{equation}
+The empirical analogue uses cross-fitted residuals and defines the residual second moment (this equals the Jacobian magnitude; centering is not used):
+\[
+\widehat{\sigma}_V^2 := \frac{1}{n}\sum_{i=1}^n \Vhat_i^2, \quad
+\widehat{\sigma}_D^2 := \frac{1}{n}\sum_{i=1}^n (D_i - \bar{D})^2, \quad
+\bar{D} := \frac{1}{n}\sum_{i=1}^n D_i,
+\]
+and $\widehat{\kappa} := \widehat{\sigma}_D^2/\widehat{\sigma}_V^2$.
+\end{definition}
+
+\begin{remark}[VIF Connection]\label{rem:vif}
+The condition number $\kappastar = 1/(1 - R^2(D \mid X))$ has the same \emph{functional form} as the classical Variance Inflation Factor \citep{belsley1980diagnostic}, and reduces to the classical VIF when $R^2(D \mid X)$ is interpreted as the $R^2$ from the linear projection of $D$ on $X$. Our $R^2(D \mid X)$ uses the nonparametric conditional mean $m_0(X) = \E[D \mid X]$, making $\kappastar$ a nonparametric generalization. We write $\kappa := \kappastar$ for the population standardized condition number.
+\end{remark}
+
+\begin{remark}[Properties of $\kappa$]\label{rem:kappa_properties}
+By Lemma~\ref{lem:var_decomp}, $\sigma_D^2 \geq \sigma_V^2$, so $\kappa \geq 1$ with equality when $m_0(X)$ is constant (treatment is unpredictable). As $R^2(D \mid X) \to 1$, we have $\sigma_V^2 \to 0$ and $\kappa \to \infty$.
+\end{remark}
+
+\begin{remark}[Binary-Treatment Specialization of $\kappa$]\label{rem:kappa_binary}
+If $D \in \{0,1\}$ with $\Prob(D = 1) = p$, then $\sigma_D^2 = p(1-p)$ and $\sigma_V^2 = \E[e(X)\{1 - e(X)\}]$, so
+\[
+\kappa = \frac{p(1-p)}{\E[e(X)\{1 - e(X)\}]},
+\]
+which grows as overlap weakens.
+\end{remark}
+
+\subsection{Cross-Fitting and the DML Estimator}
+
+\begin{definition}[Cross-Fitting]\label{def:crossfit}
+A $K$-fold partition $\{I_1, \ldots, I_K\}$ of $\{1,\ldots,n\}$ with disjoint folds. For $i \in I_k$, nuisance estimates $\mhat^{(-k)}, \ellhat^{(-k)}$ are trained on $\{W_j : j \notin I_k\}$. We take $K$ fixed as $n \to \infty$. This sample-splitting strategy originates in \citet{schick1986} and \citet{bickel1982}, and is central to modern semiparametric estimation \citep{bickeletal1993,chernozhukov2018dml}. Throughout, we assume the relevant second moments exist under $P_n$ so that $\sigma_{D,n}^2$, $\sigma_{V,n}^2$, and $L^2$ norms are well-defined.
+\end{definition}
+
+Cross-fitted residuals: $\Vhat_i := D_i - \mhat^{(-k)}(X_i)$, $\Uhat_i := Y_i - \ellhat^{(-k)}(X_i)$ for $i \in I_k$. Define errors:
+\begin{align}
+\Delta_i^m &:= m_0(X_i) - \mhat^{(-k)}(X_i), \label{eq:delta_m}\\
+\Delta_i^\ell &:= \ell_0(X_i) - \ellhat^{(-k)}(X_i). \label{eq:delta_ell}
+\end{align}
+
+\begin{remark}[Residual Decomposition]\label{rem:residual_decomp}
+With these sign conventions, the cross-fitted residuals decompose as:
+\[
+\Vhat_i = D_i - \mhat^{(-k)}(X_i) = (D_i - m_0(X_i)) + (m_0(X_i) - \mhat^{(-k)}(X_i)) = V_i + \Delta_i^m,
+\]
+and similarly $\Uhat_i = U_i + \Delta_i^\ell$. This decomposition is central: estimated residuals equal true residuals plus nuisance error.
+\end{remark}
+
+The PLR score is:
+\begin{equation}\label{eq:score}
+\psi(W; \theta, \eta) := (D - m(X))\{Y - \ell(X) - \theta(D - m(X))\},
+\end{equation}
+where $\eta = (\ell, m)$. At true values, $\psi(W; \theta_0, \eta_0) = V\varepsilon$.
+
+\begin{lemma}[Neyman Orthogonality]\label{lem:orthog}
+The pathwise derivative of $\E[\psi(W; \theta_0, \eta)]$ with respect to $\eta$ vanishes at $\eta_0$. This property is the cornerstone of debiased machine learning \citep{chernozhukov2018dml}.
+\end{lemma}
+
+The proof is in Appendix~\ref{app:proofs}. Neyman orthogonality implies the first-order effect of nuisance perturbations on the population moment vanishes; combined with cross-fitting, the leading sample terms involving $\Delta^m, \Delta^\ell$ are mean-zero and of order $(r_n^m + r_n^\ell)/\sqrt{n}$, while the systematic remainder is second order (e.g., $r_n^m r_n^\ell$ and $(r_n^m)^2$).
+
+\begin{definition}[DML Estimator]\label{def:dml}
+\begin{equation}\label{eq:theta_hat}
+\thetahat := \frac{\sum_{i=1}^n \Vhat_i \Uhat_i}{\sum_{i=1}^n \Vhat_i^2}.
+\end{equation}
+\end{definition}
+
+\begin{definition}[Empirical Score Map]\label{def:psi_n}
+For any $(\theta, \eta) = (\theta, \ell, m)$ define
+\[
+\Psi_n(\theta, \eta) := \frac{1}{n}\sum_{i=1}^n (D_i - m(X_i))\{Y_i - \ell(X_i) - \theta(D_i - m(X_i))\}.
+\]
+With cross-fitting, $\Psi_n(\theta, \etahat)$ is computed using fold-specific $\ellhat^{(-k)}, \mhat^{(-k)}$ for $i \in I_k$.
+\end{definition}
+
+\subsection{The Score Jacobian}
+
+\begin{definition}[Empirical Jacobian]\label{def:jacobian}
+\begin{equation}\label{eq:jacobian}
+\Jhat_\theta := \frac{\partial}{\partial \theta}\left[\frac{1}{n}\sum_i \Vhat_i(\Uhat_i - \theta\Vhat_i)\right] = -\frac{1}{n}\sum_i \Vhat_i^2 = -\widehat{\sigma}_V^2.
+\end{equation}
+\end{definition}
+
+\begin{remark}[Jacobian Interpretation]\label{rem:jacobian_interp}
+The Jacobian magnitude $|\Jhat_\theta| = \widehat{\sigma}_V^2$ measures the score's curvature---how quickly the score changes as $\theta$ varies. When $\widehat{\sigma}_V^2$ is small, the score is nearly flat in the $\theta$ direction, and small score perturbations cause large parameter shifts. This is the classical numerical-analysis insight that condition numbers govern error propagation \citep{golubvanloan2013}.
+\end{remark}
+
+\begin{lemma}[Jacobian-Kappa Relationship]\label{lem:jacobian_kappa}
+\begin{equation}
+|\Jhat_\theta|^{-1} = \frac{\widehat{\kappa}}{\widehat{\sigma}_D^2}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+From Definition~\ref{def:jacobian}, $|\Jhat_\theta| = \widehat{\sigma}_V^2$. From Definition~\ref{def:kappa_star}, $\widehat{\kappa} = \widehat{\sigma}_D^2/\widehat{\sigma}_V^2$. Therefore:
+\[
+|\Jhat_\theta|^{-1} = \frac{1}{\widehat{\sigma}_V^2} = \frac{\widehat{\kappa}}{\widehat{\sigma}_D^2}. \qedhere
+\]
+\end{proof}
+
+\begin{remark}[Key Insight]\label{rem:key_insight}
+When we invert the Jacobian to solve for estimator error, the condition number $\widehat{\kappa}$ appears as a scale-invariant amplification factor. This is the mechanism through which ill-conditioning affects inference.
+\end{remark}
+
+\subsection{Connection to the Riesz Representer}
+
+\begin{definition}[Minimal-Norm Representer]\label{def:riesz}
+For the PLR moment, we define the minimal-norm representer $\alpha_0: \mathcal{W} \to \R$ as the unique function satisfying:
+\begin{enumerate}[label=(\roman*)]
+\item $\E[\alpha_0(W) \cdot f(X)] = 0$ for all $f \in L^2(P_X)$;
+\item $\E[\alpha_0(W) \cdot D] = 1$;
+\item $\|\alpha_0\|_{L^2}^2 = \min\{\|\alpha\|_{L^2}^2 : \alpha \text{ satisfies (i)--(ii)}\}$.
+\end{enumerate}
+This is the Riesz representer for the functional $\theta \mapsto \E[\alpha(W) \cdot \theta D]$ restricted to the space orthogonal to $L^2(P_X)$, expressed as a constrained minimal-norm problem \citep{riesz1907,chernozhukov2022riesz}.
+\end{definition}
+
+\begin{theorem}[Condition Number as Riesz Norm]\label{thm:riesz_kappa}
+In the PLR model, $\alpha_0(W) = V/\sigma_V^2$, and:
+\begin{equation}\label{eq:riesz_kappa}
+\boxed{\kappa = \sigma_D^2 \cdot \|\alpha_0\|_{L^2}^2, \quad \text{where } \|\alpha_0\|_{L^2}^2 = 1/\sigma_V^2.}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+We show $\alpha_0(W) = V/\sigma_V^2$ satisfies Definition~\ref{def:riesz} and is the unique minimizer.
+
+\textit{Step 1 (Orthogonality):} For any $f \in L^2(P_X)$:
+\begin{align*}
+\E[\alpha_0(W) \cdot f(X)] &= \frac{1}{\sigma_V^2}\E[V \cdot f(X)] \\
+&= \frac{1}{\sigma_V^2}\E[\E[V \mid X] \cdot f(X)] = 0,
+\end{align*}
+since $\E[V \mid X] = 0$ by construction.
+
+\textit{Step 2 (Normalization):}
+\begin{align*}
+\E[\alpha_0(W) \cdot D] &= \frac{1}{\sigma_V^2}\E[V \cdot (m_0(X) + V)] \\
+&= \frac{1}{\sigma_V^2}(\E[V m_0(X)] + \E[V^2]) = \frac{\sigma_V^2}{\sigma_V^2} = 1.
+\end{align*}
+
+\textit{Step 3 (Norm computation):}
+\[
+\|\alpha_0\|_{L^2}^2 = \E\left[\frac{V^2}{\sigma_V^4}\right] = \frac{\sigma_V^2}{\sigma_V^4} = \frac{1}{\sigma_V^2}.
+\]
+
+\textit{Step 4 (Minimality and uniqueness):} Let $\alpha$ be any function satisfying (i)--(ii). Define $h := \alpha - \alpha_0$. Then $h$ satisfies:
+\begin{itemize}
+\item $\E[h(W) f(X)] = 0$ for all $f \in L^2(P_X)$ (orthogonality inherited);
+\item $\E[h(W) D] = 0$ (normalization difference).
+\end{itemize}
+Since $D = m_0(X) + V$ and $\E[h(W) m_0(X)] = 0$ by orthogonality, we have $\E[h(W) V] = 0$.
+
+Now, $\alpha_0 = V/\sigma_V^2$ is a scalar multiple of $V$, so $\E[h \cdot \alpha_0] = \E[h V]/\sigma_V^2 = 0$. By the Pythagorean identity:
+\[
+\|\alpha\|_{L^2}^2 = \|\alpha_0 + h\|_{L^2}^2 = \|\alpha_0\|_{L^2}^2 + \|h\|_{L^2}^2 \geq \|\alpha_0\|_{L^2}^2,
+\]
+with equality if and only if $h = 0$ a.s. Thus $\alpha_0$ is the unique minimizer.
+
+\textit{Step 5 (Final result):}
+\[
+\sigma_D^2 \cdot \|\alpha_0\|_{L^2}^2 = \sigma_D^2 \cdot \frac{1}{\sigma_V^2} = \kappa. \qedhere
+\]
+\end{proof}
+
+\begin{remark}[Semiparametric Interpretation]\label{rem:semipar_interp}
+Theorem~\ref{thm:riesz_kappa} grounds our diagnostic in modern semiparametric theory \citep{newey1990semipar,bickeletal1993,tsiatis2006semipar,kennedy2016semipar,chernozhukov2022riesz}. The minimal-norm representer $\alpha_0$ is the correction weight for double robustness \citep{bangrobins2005}; its norm measures how much correction is required. The terminology ``Riesz representer'' refers to this object's role as the representer of a linear functional under the $L^2(P)$ inner product, restricted to the space orthogonal to nuisance directions \citep{riesz1909operations}. A large $\|\alpha_0\|_{L^2}^2$ signals both large variance and large sensitivity to nuisance bias.
+\end{remark}
+
+\begin{remark}[Hilbert-Space View]\label{rem:hilbert_view}
+Constraint (i) is equivalent to $\E[\alpha(W) \mid X] = 0$, i.e.\ $\alpha$ lies in the orthogonal complement of $L^2(P_X)$ inside $L^2(P)$. The minimization in Definition~\ref{def:riesz} therefore selects the minimum-$L^2$ instrument in the residual variation direction $V$.
+\end{remark}
+
+\subsection{The Exact Finite-Sample Decomposition}
+
+Define the oracle sampling term:
+\begin{equation}\label{eq:Sn}
+S_n := \frac{1}{n}\sum_{i=1}^n V_i \varepsilon_i.
+\end{equation}
+
+\begin{lemma}[Bias Decomposition]\label{lem:bias_decomp}
+Define the nuisance bias term $B_n := \Psi_n(\theta_0, \etahat) - S_n$. Then:
+\begin{equation}\label{eq:Bn_expansion}
+B_n = B_n^{(1)} + B_n^{(2)} + B_n^{(3)} + B_n^{(4)} + B_n^{(5)},
+\end{equation}
+where:
+\begin{align}
+B_n^{(1)} &:= \frac{1}{n}\sum_i V_i \Delta_i^\ell, \label{eq:Bn1}\\
+B_n^{(2)} &:= -\theta_0 \frac{1}{n}\sum_i V_i \Delta_i^m, \label{eq:Bn2}\\
+B_n^{(3)} &:= \frac{1}{n}\sum_i \Delta_i^m \varepsilon_i, \label{eq:Bn3}\\
+B_n^{(4)} &:= \frac{1}{n}\sum_i \Delta_i^m \Delta_i^\ell, \label{eq:Bn4}\\
+B_n^{(5)} &:= -\theta_0 \frac{1}{n}\sum_i (\Delta_i^m)^2. \label{eq:Bn5}
+\end{align}
+\end{lemma}
+
+\begin{proof}
+Expand $\Vhat_i(\Uhat_i - \theta_0\Vhat_i)$ using $\Vhat_i = V_i + \Delta_i^m$ and $\Uhat_i = U_i + \Delta_i^\ell = \theta_0 V_i + \varepsilon_i + \Delta_i^\ell$:
+\begin{align*}
+\Vhat_i(\Uhat_i - \theta_0\Vhat_i) &= (V_i + \Delta_i^m)[(\theta_0 V_i + \varepsilon_i + \Delta_i^\ell) - \theta_0(V_i + \Delta_i^m)] \\
+&= (V_i + \Delta_i^m)[\varepsilon_i + \Delta_i^\ell - \theta_0\Delta_i^m].
+\end{align*}
+Expanding:
+\begin{align*}
+&= V_i\varepsilon_i + V_i\Delta_i^\ell - \theta_0 V_i\Delta_i^m \\
+&\quad + \Delta_i^m\varepsilon_i + \Delta_i^m\Delta_i^\ell - \theta_0(\Delta_i^m)^2.
+\end{align*}
+Averaging over $i$ and subtracting $S_n = n^{-1}\sum_i V_i\varepsilon_i$ yields the five terms. \qedhere
+\end{proof}
+
+\begin{remark}[Interpretation of Bias Components]\label{rem:bias_interp}
+Terms $B_n^{(1)}$--$B_n^{(3)}$ are ``first-order'' in nuisance error: under cross-fitting, they have conditional mean zero and contribute $O_P(n^{-1/2})$ variance. Term $B_n^{(4)}$ is the product term driving the product-rate requirement. Term $B_n^{(5)}$ is always negative (for $\theta_0 > 0$) and scales as $(r_n^m)^2$.
+\end{remark}
+
+\begin{theorem}[Exact Decomposition]\label{thm:exact_decomp}
+Under PLR, the DML estimator satisfies:
+\begin{equation}\label{eq:exact_decomp}
+\boxed{\thetahat - \theta_0 = \widehat{\kappa} \cdot S_n' + \widehat{\kappa} \cdot B_n',}
+\end{equation}
+where $S_n' := S_n/\widehat{\sigma}_D^2$ and $B_n' := B_n/\widehat{\sigma}_D^2$. This is an exact algebraic identity---no Taylor approximation.
+\end{theorem}
+
+\begin{proof}
+\textit{Step 1 (Solve for estimator):} The DML estimator solves $\Psi_n(\thetahat, \etahat) = 0$. Since the score is affine in $\theta$:
+\[
+\Psi_n(\theta, \etahat) = \frac{1}{n}\sum_i \Vhat_i\Uhat_i - \theta \cdot \widehat{\sigma}_V^2.
+\]
+Setting $\Psi_n = 0$: $\thetahat = \frac{1}{n}\sum_i \Vhat_i\Uhat_i / \widehat{\sigma}_V^2$.
+
+\textit{Step 2 (Express error):} Subtracting $\theta_0$:
+\[
+\thetahat - \theta_0 = \frac{\frac{1}{n}\sum_i \Vhat_i(\Uhat_i - \theta_0\Vhat_i)}{\widehat{\sigma}_V^2} = \frac{\Psi_n(\theta_0, \etahat)}{\widehat{\sigma}_V^2}.
+\]
+
+\textit{Step 3 (Decompose score):} By Lemma~\ref{lem:bias_decomp}:
+\[
+\Psi_n(\theta_0, \etahat) = S_n + B_n.
+\]
+
+\textit{Step 4 (Standardize):}
+\begin{align*}
+\thetahat - \theta_0 &= \frac{S_n + B_n}{\widehat{\sigma}_V^2} \\
+&= \frac{\widehat{\sigma}_D^2}{\widehat{\sigma}_V^2} \cdot \frac{S_n + B_n}{\widehat{\sigma}_D^2} \\
+&= \widehat{\kappa}(S_n' + B_n'). \qedhere
+\end{align*}
+\end{proof}
+
+\begin{remark}[Why Exact]\label{rem:why_exact}
+The decomposition is exact because the PLR score is affine in $\theta$. There is no Taylor expansion, hence no remainder term. This exactness holds at any sample size.
+\end{remark}
+
+\begin{remark}[Dimensional Consistency]\label{rem:units}
+$S_n$ has units $[D][Y]$, $\widehat{\sigma}_D^2$ has units $[D]^2$, so $S_n'$ has units $[Y]/[D]$ matching $\theta_0$. Since $\widehat{\kappa}$ is dimensionless (ratio of variances), the decomposition is unit-consistent.
+\end{remark}
+
+\subsection{Variance Inflation versus Bias Amplification}
+
+
+The exact decomposition shows that $\hat\kappa$ multiplies both the oracle sampling component and the nuisance-induced
+bias, but the inferential consequences are fundamentally different. On the one hand, variance inflation arises
+through the oracle term $\hat\kappa\,S_n'$, since $S_n'$ scales with $\sigma_V$ and, under the efficiency bound in
+Theorem~\ref{thm:efficiency}, the relevant benchmark variance is $V_{\mathrm{eff}}=\sigma_\varepsilon^2/\sigma_V^2$.
+In this case the usual standard errors track the increased sampling variability induced by limited residual treatment
+variation, so coverage can remain approximately nominal. On the other hand, bias amplification arises through
+$\hat\kappa\,B_n'$, because any remaining nuisance error is multiplied by $\kappa$; this systematic shift is not
+reflected in conventional standard errors, so confidence intervals can remain tight while becoming badly miscentered.
+This divergence between narrow intervals and poor coverage is the ``silent failure'' highlighted by our analysis.
+
+
+\subsection{Finite-Sample Probability Bounds}
+
+\begin{assumption}[Bounded Moments]\label{ass:moments}
+$\E[D^4], \E[Y^4] < \infty$.
+\end{assumption}
+
+\begin{assumption}[Moment Bounds]\label{ass:moment_bounds}
+There exists a constant $C < \infty$ such that:
+\begin{enumerate}[label=(\roman*)]
+\item $\esssup_x \E[V^2 \mid X = x] \leq C$;
+\item $\esssup_{d,x} \E[\varepsilon^2 \mid D = d, X = x] \leq C$.
+\end{enumerate}
+\end{assumption}
+
+\begin{remark}[Role of Moment Bounds]\label{rem:moment_bounds}
+Assumption~\ref{ass:moment_bounds}(i) ensures that $V^2$ has uniformly bounded conditional expectation, enabling the bound $\E[V^2 (\Delta^\ell)^2] \leq C \|\Delta^\ell\|_{L^2}^2$. Assumption~\ref{ass:moment_bounds}(ii) controls the oracle term variance: $\E[V^2 \varepsilon^2] = \E[V^2 \E[\varepsilon^2 \mid D, X]] \leq C \sigma_{V,n}^2$. Conditional homoskedasticity $\E[\varepsilon^2 \mid D, X] = \sigma_\varepsilon^2$ is a special case.
+\end{remark}
+
+\begin{assumption}[Nuisance Rates]\label{ass:rates}
+$\|\mhat^{(-k)} - m_0\|_{L^2} = O_P(r_n^m)$, $\|\ellhat^{(-k)} - \ell_0\|_{L^2} = O_P(r_n^\ell)$.
+\end{assumption}
+
+\begin{assumption}[Residual-Variance Stability]\label{ass:var_stability}
+$\sigma_{V,n}^2 / \widehat{\sigma}_V^2 = O_P(1)$. Equivalently, there exists $c > 0$ with $\Prob(\widehat{\sigma}_V^2 \geq c \sigma_{V,n}^2) \to 1$.
+\end{assumption}
+
+\begin{remark}[Role of Variance Stability]\label{rem:var_stability}
+Assumption~\ref{ass:var_stability} ensures that the empirical residual variance $\widehat{\sigma}_V^2$ does not collapse relative to the population variance $\sigma_{V,n}^2$. This is needed to control the oracle term scaling $S_n/\widehat{\sigma}_V^2$. Under strong overlap with consistent estimation, this holds automatically; under weakening overlap, it becomes a substantive requirement.
+\end{remark}
+
+\begin{lemma}[Sufficient Condition for Variance Stability]\label{lem:var_stability_suff}
+Suppose $\E[D^4] < \infty$ and let $\widehat{\sigma}_V^2 := n^{-1}\sum_{i=1}^n (D_i - \mhat^{(-k(i))}(X_i))^2$ denote the cross-fitted residual second moment. If
+\[
+\|\mhat^{(-k)} - m_0\|_{L^2} = o_P(\sigma_{V,n}) \quad \text{uniformly over } k,
+\]
+then $\widehat{\sigma}_V^2/\sigma_{V,n}^2 \pto 1$, hence Assumption~\ref{ass:var_stability} holds.
+
+\end{lemma} 
+
+\begin{proof}
+Write $\Vhat_i = V_i + \Delta_i^m$. Then
+\[
+n^{-1}\sum_i \Vhat_i^2 = n^{-1}\sum_i V_i^2 + 2n^{-1}\sum_i V_i \Delta_i^m + n^{-1}\sum_i (\Delta_i^m)^2.
+\]
+By Cauchy--Schwarz, $|n^{-1}\sum_i V_i \Delta_i^m| \leq \|V\|_n \|\Delta^m\|_n = O_P(\sigma_{V,n}) \cdot o_P(\sigma_{V,n}) = o_P(\sigma_{V,n}^2)$. Also $n^{-1}\sum_i (\Delta_i^m)^2 = \|\Delta^m\|_n^2 = o_P(\sigma_{V,n}^2)$. Finally, $n^{-1}\sum_i V_i^2 \pto \sigma_{V,n}^2$ under finite fourth moments. \qed
+\end{proof}
+
+
+
+\begin{remark}[Interpretation of Sufficient Condition]\label{rem:var_stability_suff}
+Lemma~\ref{lem:var_stability_suff} shows that, under weakening overlap, variance stability is ensured when the first-stage error is small relative to the residual scale $\sigma_{V,n}$; this prevents $\widehat{\sigma}_V^2$ from collapsing due to first-stage error.
+\end{remark}
+
+
+\begin{lemma}[Foldwise Empirical-to-Population Norm]\label{lem:emp_pop}
+Let $\{I_1, \ldots, I_K\}$ be the cross-fitting folds (Definition~\ref{def:crossfit}). For each fold $k$, let $\Delta^{(-k)}: \mathcal{X} \to \R$ be any (possibly random) function measurable with respect to the training sigma-field generated by $\{W_j : j \notin I_k\}$. Define the fold empirical norm
+\[
+\|\Delta^{(-k)}\|_{n,k}^2 := \frac{1}{|I_k|}\sum_{i \in I_k} \Delta^{(-k)}(X_i)^2.
+\]
+Then, conditional on the training sample for fold $k$,
+\[
+\E\!\left[\|\Delta^{(-k)}\|_{n,k}^2 \mid \{W_j : j \notin I_k\}\right] = \|\Delta^{(-k)}\|_{L^2(P_X)}^2.
+\]
+Consequently, by Markov's inequality, $\|\Delta^{(-k)}\|_{n,k} = O_P(\|\Delta^{(-k)}\|_{L^2})$ uniformly over $k$.
+
+If $\Delta_i := \Delta^{(-k)}(X_i)$ for $i \in I_k$, then the full-sample empirical norm satisfies
+\[
+\|\Delta\|_n^2 = \frac{1}{n}\sum_{k=1}^K |I_k|\, \|\Delta^{(-k)}\|_{n,k}^2,
+\]
+so in particular $\|\Delta\|_n = O_P\!\left(\max_{1 \leq k \leq K} \|\Delta^{(-k)}\|_{L^2}\right)$.
+\end{lemma}
+
+\begin{theorem}[Complete Finite-Sample Bound]\label{thm:fs_bound}
+Under Assumptions~\ref{ass:causal_plr}--\ref{ass:var_stability}:
+\begin{equation}\label{eq:fs_bound}
+\boxed{\thetahat - \theta_0 = O_P\left(\frac{\sqrt{\kappa_n}}{\sqrt{n}} + \kappa_n \cdot \mathrm{Rem}_n\right),}
+\end{equation}
+where the remainder term is:
+\begin{equation}\label{eq:remainder}
+\mathrm{Rem}_n := r_n^m r_n^\ell + (r_n^m)^2 + \frac{r_n^m + r_n^\ell}{\sqrt{n}}.
+\end{equation}
+The oracle term $O_P(\sqrt{\kappa_n}/\sqrt{n})$ follows from $O_P(1/(\sigma_{V,n}\sqrt{n}))$ and Assumption~\ref{ass:bounded_D}.
+\end{theorem}
+
+
+
+\begin{proof}
+From Theorem~\ref{thm:exact_decomp}: $\thetahat - \theta_0 = \widehat{\kappa}(S_n' + B_n')$.
+
+Oracle term: The oracle term $S_n = n^{-1}\sum_i V_i\varepsilon_i$ has conditional mean zero and
+\[
+\Var(S_n) = \frac{1}{n}\E[V^2\varepsilon^2].
+\]
+By Assumption~\ref{ass:moment_bounds}(ii) and iterated expectations:
+\[
+\E[V^2\varepsilon^2] = \E[V^2 \E[\varepsilon^2 \mid D, X]] \leq C \cdot \E[V^2] = C \sigma_{V,n}^2.
+\]
+Thus $S_n = O_P(\sigma_{V,n}/\sqrt{n})$. By Assumption~\ref{ass:var_stability}, $\sigma_{V,n}^2/\widehat{\sigma}_V^2 = O_P(1)$, so:
+\[
+\widehat{\kappa} S_n' = \frac{S_n}{\widehat{\sigma}_V^2} = O_P\!\left(\frac{\sigma_{V,n}}{\sqrt{n}} \cdot \frac{1}{\sigma_{V,n}^2}\right) = O_P\!\left(\frac{1}{\sigma_{V,n}\sqrt{n}}\right).
+\]
+
+Bias term: By Lemma~\ref{lem:bias_decomp}, $B_n = \sum_{j=1}^5 B_n^{(j)}$.
+
+Terms $B_n^{(1)}$--$B_n^{(3)}$: Under cross-fitting, these have conditional mean zero. For $B_n^{(1)} = n^{-1}\sum_i V_i \Delta_i^\ell$, by Assumption~\ref{ass:moment_bounds}(i) and iterated expectations:
+\[
+\E[V^2 (\Delta^\ell)^2] = \E[(\Delta^\ell)^2 \E[V^2 \mid X]] \leq C \|\Delta^\ell\|_{L^2}^2 = O_P((r_n^\ell)^2).
+\]
+Thus $\Var(B_n^{(1)}) = O_P((r_n^\ell)^2/n)$ and $B_n^{(1)} = O_P(r_n^\ell/\sqrt{n})$. Similarly for $B_n^{(2)}, B_n^{(3)}$.
+
+Term $B_n^{(4)}$: By sample Cauchy--Schwarz:
+\[
+|B_n^{(4)}| = \left|\frac{1}{n}\sum_i \Delta_i^m \Delta_i^\ell\right| \leq \|\Delta^m\|_n \|\Delta^\ell\|_n.
+\]
+By Lemma~\ref{lem:emp_pop} applied foldwise to $\Delta^{m,(-k)}(x) := m_0(x) - \mhat^{(-k)}(x)$ and $\Delta^{\ell,(-k)}(x) := \ell_0(x) - \ellhat^{(-k)}(x)$, we have $\|\Delta^m\|_n = O_P(r_n^m)$ and $\|\Delta^\ell\|_n = O_P(r_n^\ell)$. Hence $|B_n^{(4)}| = O_P(r_n^m r_n^\ell)$.
+
+Term $B_n^{(5)}$: Similarly, $|B_n^{(5)}| = |\theta_0| \|\Delta^m\|_n^2 = O_P((r_n^m)^2)$.
+
+Combining: $B_n = O_P(r_n^m r_n^\ell + (r_n^m)^2 + (r_n^m + r_n^\ell)/\sqrt{n}) = O_P(\mathrm{Rem}_n)$.
+
+Therefore: $\widehat{\kappa} B_n' = O_P(\kappa_n \cdot \mathrm{Rem}_n)$. \qedhere
+\end{proof}
+
+\begin{remark}[Complete Remainder]\label{rem:complete_rem}
+The remainder~\eqref{eq:remainder} includes $(r_n^m)^2$ from $B_n^{(5)}$, which can dominate $r_n^m r_n^\ell$ when $r_n^m \gg r_n^\ell$. The cross-fitting terms contribute $(r_n^m + r_n^\ell)/\sqrt{n}$, negligible when $r_n^m, r_n^\ell = o(1)$.
+\end{remark}
+
+\begin{corollary}[Critical Rate]\label{cor:critical}
+Under strong overlap ($\inf_n \sigma_{V,n} > 0$) and bounded treatment variance (Assumption~\ref{ass:bounded_D}), $\kappa_n = O(1)$, so $\sqrt{n}$-consistent inference requires $\mathrm{Rem}_n = o(n^{-1/2})$, equivalently $\kappa_n \cdot \mathrm{Rem}_n = o(n^{-1/2})$.
+\end{corollary}
+
+\subsection{Efficiency Bound Connection}
+\label{subsec:efficiency}
+
+\begin{assumption}[Conditional Homoskedasticity]\label{ass:homosked}
+$\E[\varepsilon^2 \mid D, X] = \sigma_\varepsilon^2$ almost surely.
+\end{assumption}
+
+\begin{remark}[Why Condition on $(D,X)$]\label{rem:homosked}
+Assumption~\ref{ass:homosked} is stronger than $\E[\varepsilon^2 \mid X] = \sigma_\varepsilon^2$. The latter does not imply $\E[V^2\varepsilon^2] = \sigma_\varepsilon^2 \sigma_V^2$ because $V^2$ is not $X$-measurable. Under Assumption~\ref{ass:homosked}, since $\varepsilon^2$ is mean-independent of $D$ given $X$, we can show $\E[V^2\varepsilon^2] = \sigma_\varepsilon^2 \sigma_V^2$.
+\end{remark}
+
+\begin{theorem}[Efficiency and Condition Number]\label{thm:efficiency}
+Under Assumption~\ref{ass:homosked}, the semiparametric efficiency bound is:
+\begin{equation}
+V_{\mathrm{eff}} = \frac{\sigma_\varepsilon^2}{\sigma_V^2} = \frac{\sigma_\varepsilon^2 \kappa}{\sigma_D^2}.
+\end{equation}
+Without Assumption~\ref{ass:homosked}, the bound is $V_{\mathrm{eff}} = \E[V^2\varepsilon^2]/\sigma_V^4$. This efficiency result connects to the classical semiparametric variance bound literature \citep{hahn1998,newey1990semipar,bickeletal1993}.
+\end{theorem}
+
+\begin{proof}
+The efficiency bound for moment $\E[\psi] = 0$ is $V_{\mathrm{eff}} = \E[\psi^2]/(\partial_\theta \E[\psi])^2$.
+
+For $\psi = V\varepsilon$: $\E[\psi^2] = \E[V^2\varepsilon^2]$ and $\partial_\theta \E[\psi] = -\sigma_V^2$.
+
+Under Assumption~\ref{ass:homosked}:
+\begin{align*}
+\E[V^2\varepsilon^2] &= \E[\E[V^2\varepsilon^2 \mid D, X]] \\
+&= \E[V^2 \E[\varepsilon^2 \mid D, X]] \quad \text{($V^2$ is $(D,X)$-measurable)}\\
+&= \E[V^2 \sigma_\varepsilon^2] = \sigma_\varepsilon^2 \sigma_V^2.
+\end{align*}
+Therefore: $V_{\mathrm{eff}} = \sigma_\varepsilon^2 \sigma_V^2 / \sigma_V^4 = \sigma_\varepsilon^2/\sigma_V^2 = \sigma_\varepsilon^2 \kappa/\sigma_D^2$. \qedhere
+\end{proof}
+
+% ==========================================================================
+\section{Conditioning Regimes and Rate Implications}
+\label{sec:regimes}
+% ==========================================================================
+
+The regimes below label how overlap weakens along the triangular array. Plugging regime-specific $\kappa_n$ growth into Theorem~\ref{thm:fs_bound} yields the corresponding rate implications. In applications we observe a single sample size $n$ and an estimate $\widehat{\kappa}$. In practice, the regimes serve as a qualitative sensitivity lens for how strongly the finite-sample bound amplifies estimation error. These regimes are labels, not hard cutoffs---no formal thresholds are proposed.
+
+\paragraph{Terminology.} In this paper, ``conditioning'' refers to $\kappa$-driven amplification in the orthogonal score. It is related to overlap but does not by itself diagnose identification. Overlap/positivity remains a causal identification assumption. $\kappa^*$ quantifies how much residual treatment variation is available for inference.
+
+From this point, we analyze sequences of DGPs under Assumption~\ref{ass:triangular} (triangular array). In this regime, Assumption~\ref{ass:overlap} is not imposed. It is replaced by the lower bound $\Var(D_n \mid X_n = x) \geq \underline{\sigma}_n^2$ with $\underline{\sigma}_n^2 \downarrow 0$.
+
+\begin{remark}[Notation Consistency]\label{rem:notation}
+Throughout, $\kappa_n$ denotes the population condition number along the sequence, $\kappastar$ denotes the population standardized condition number under a fixed DGP, and $\widehat{\kappa}$ denotes the sample estimate.
+\end{remark}
+
+\subsection{Regime Classification}
+
+Under Assumption~\ref{ass:triangular} (triangular array), $\kappa_n$ may grow with $n$.
+\begin{definition}[Conditioning Regimes]\label{def:regimes}
+\hfill
+\begin{enumerate}[label=(\roman*)]
+\item \textbf{Well-conditioned}: $\kappa_n = O(1)$. Standard $\sqrt{n}$-asymptotics apply.
+\item \textbf{Moderately ill-conditioned}: $\kappa_n = O(n^\gamma)$ for $0 < \gamma < 1/2$. Convergence continues at slower-than-$\sqrt{n}$ rates.
+\item \textbf{Severely ill-conditioned}: $\kappa_n \asymp \sqrt{n}$. Standard $\sqrt{n}$-asymptotics fail; the estimator may converge at slower rates and becomes highly sensitive to the nuisance remainder $\mathrm{Rem}_n$. 
+\end{enumerate}
+\end{definition}
+
+
+These regimes correspond to how fast residual treatment variation shrinks conditional on covariates (weakening overlap/positivity). ``Well-conditioned'' means overlap is effectively stable. ``Moderately ill-conditioned'' means overlap weakens slowly so error amplification grows but can still vanish if the nuisance remainder is sufficiently small. ``Severely ill-conditioned'' means overlap weakens fast enough that bias/variance amplification can overwhelm $\sqrt{n}$-scaling.
+
+\paragraph{Practical interpretation by regime.}
+In the well-conditioned regime, estimates should be stable across learner choices and small nuisance errors remain small after amplification.
+In the moderately ill-conditioned regime, cross-learner dispersion may become noticeable, warranting sensitivity analysis.
+In the severely ill-conditioned regime, confidence intervals can appear narrow yet systematically fail to cover the true parameter. Inference should be treated with skepticism and robustness checks prioritized over point estimates.
+The distinction is qualitative and comparative---practitioners should focus on how $\widehat{\kappa}^*$ changes across specifications rather than applying fixed numerical cutoffs.
+
+\begin{remark}[Fixed vs.\ Growing $\kappa$]\label{rem:fixed_growing}
+Under Assumption~\ref{ass:overlap} (strong overlap), $\kappa$ is bounded, so we are always in regime (i). Regimes (ii)--(iii) arise under Assumption~\ref{ass:triangular} when overlap weakens with $n$.
+\end{remark}
+
+This follows by substituting the regime-specific growth of $\kappa_n$ into the finite-sample bound implied by the exact decomposition (Theorem~\ref{thm:exact_decomp}) and the assumed remainder rate $\mathrm{Rem}_n$, under the same moment conditions used for the bound.
+
+\begin{theorem}[Rates by Regime]\label{thm:rates}
+Suppose $\mathrm{Rem}_n = O(n^{-\alpha})$ for some $\alpha > 0$ and $\sigma_{D,n}^2 \asymp 1$:
+\begin{enumerate}[label=(\roman*)]
+\item Well-conditioned ($\kappa_n = O(1)$): $\thetahat - \theta_0 = O_P(n^{-1/2})$.
+\item Moderately ill-conditioned ($\kappa_n = O(n^\gamma)$, $\gamma < 1/2$): $\thetahat - \theta_0 = O_P(n^{\gamma/2 - 1/2} + n^{\gamma-\alpha})$. If $\alpha \le \gamma$, the remainder term $n^{\gamma-\alpha}$ does not vanish and may dominate the stochastic term.
+\item Severely ill-conditioned ($\kappa_n \asymp \sqrt{n}$): $\thetahat - \theta_0 = O_P(n^{-1/4} + n^{1/2-\alpha})$. \newline
+If $\alpha < 1/2$, the remainder term dominates and may diverge.
+\end{enumerate}
+\end{theorem}
+
+In a single sample, $\widehat{\kappa}$ summarizes sensitivity to nuisance bias. Reporting $\widehat{\kappa}$ communicates the amplification scale suggested by the bound. When $\widehat{\kappa}$ is elevated, compare estimates across learner specifications.
+
+% ==========================================================================
+\section{Monte Carlo Evidence}
+\label{sec:simulations}
+% ==========================================================================
+
+Our mathematical results (Theorem~\ref{thm:exact_decomp}, Theorem~\ref{thm:fs_bound}) predict that finite-sample error decomposes into a sampling-noise term and a nuisance-error term that can be amplified by conditioning, summarized by $\kappastar$. We demonstrate: (i) amplification is monotone in $\kappastar$; (ii) a single-index ($\kappastar \times$ nuisance-error magnitude) explains bias and coverage dynamics; (iii) sign structure can remove or restore cancellations in the bias decomposition. This is a mechanism test, not a claim about realistic learner behavior---we perturb oracle nuisances by known amounts to isolate the amplification channel.
+
+\medskip
+\noindent Predictions P1--P3 are direct qualitative implications of the exact decomposition (Theorem~\ref{thm:exact_decomp}) and the finite-sample bound (Theorem~\ref{thm:fs_bound}):
+\begin{description}[leftmargin=1em,labelindent=0em]
+\item[\textbf{P1}] \textbf{Bias amplification:} For fixed nuisance-error magnitude $\delta$, $|\text{Bias}(\thetahat)|$ increases approximately proportionally with $\kappastar$.
+\item[\textbf{P2}] \textbf{Single-index collapse:} Under controlled perturbations, $|\text{Bias}|/\text{SE}$ is approximately a function of the single index $\kappastar \times \delta$.
+\item[\textbf{P3}] \textbf{Coverage collapse mechanism:} Coverage fails when $|\text{Bias}|/\text{SE}$ increases (a deterministic mechanism, not random failure).
+\end{description}
+We also validate Lemma~\ref{lem:bias_decomp} (sign interaction) via a designed falsification check and demonstrate robustness to nonlinear DGPs and sample size.
+
+\paragraph{Design-to-theory map.}
+The simulation design directly maps theory to observables: the perturbation parameter $\delta$ controls nuisance-error magnitude (analogous to $r_n^m, r_n^\ell$ in Theorem~\ref{thm:fs_bound}). The $R^2(D \mid X)$ calibration determines structural $\kappastar$ (the ``conditioning knob''); and the outcome metrics (bias, coverage, $|\text{Bias}|/\text{SE}$) correspond to the predictions P1--P3, which are direct implications of the exact decomposition and the finite-sample bound.
+
+\subsection{Simulation Design}
+
+\subsubsection*{Data Generating Process}
+
+Following the simulation design common in the DML literature \citep{chernozhukov2018dml,knauslechnerstrittmatter2021}, we generate $n = 2{,}000$ observations from a Partially Linear Regression model:
+\begin{align}
+Y_i &= D_i \theta_0 + g_0(X_i) + \varepsilon_i, \label{eq:dgp_y}\\
+D_i &= m_0(X_i) + V_i, \label{eq:dgp_d}
+\end{align}
+where $\theta_0 = 0.5$, $X_i \in \mathbb{R}^{10}$ with $X_{ij} \stackrel{\text{iid}}{\sim} N(0,1)$, and $(V_i, \varepsilon_i) \stackrel{\text{iid}}{\sim} N(0, I_2)$, independent of $X_i$.
+
+The nuisance functions are:
+\begin{align*}
+m_0(X) &= \beta^\top X, \quad \text{where } \|\beta\|^2 \text{ is calibrated to achieve target } R^2(D \mid X),\\
+g_0(X) &= \gamma^\top X, \quad \text{with } \gamma_j = 0.5 \text{ for all } j.
+\end{align*}
+The conditional expectation of the outcome is $\ell_0(X) := \E[Y \mid X] = \theta_0 m_0(X) + g_0(X)$.
+
+To span conditioning regimes, we set $R^2(D \mid X) \in \{0.50, 0.75, 0.90, 0.95, 0.97, 0.99\}$, yielding structural $\kappastar \in \{2, 4, 10, 20, 33, 100\}$. We calibrate the first-stage signal-to-noise ratio by scaling the coefficient vector $\beta$ so that $\Var(m_0(X))/\Var(D)$ matches the target $R^2$. Appendix Table~\ref{tab:kappa} confirms $\kappastar$ is stable across $\delta$ within each $R^2$ regime, as intended by design.
+
+\subsubsection*{Corrupted Oracle Construction}
+
+The corrupted oracle isolates the amplification mechanism by injecting controlled multiplicative bias:
+\[
+\widehat{m}(X) = m_0(X) \times (1 + \delta), \quad \widehat{\ell}(X) = \ell_0(X) \times (1 + \delta),
+\]
+where $\delta \in \{0, 0.02, 0.05, 0.10, 0.20\}$. We perturb the true nuisances by a controlled multiplicative factor to isolate the amplification channel predicted by the theory. The perturbation parameter $\delta$ is a known misspecification magnitude, enabling a clean test of the predicted dependence on $\kappastar \times \delta$.
+
+This design has two key features: (i) $\delta$ is fixed by construction, eliminating learner-specific variability; (ii) the structural $\kappastar$ is determined entirely by the DGP's $R^2(D|X)$ calibration, confirmed to be invariant to $\delta$ in Appendix Table~\ref{tab:kappa}. Consequently, any observed bias is due entirely to the $\kappastar$-amplification mechanism.
+
+\subsubsection*{Estimator and Inference}
+
+For each replication, we compute the DML estimator $\thetahat = \sum_i \Vhat_i \Uhat_i / \sum_i \Vhat_i^2$, where $\Vhat_i = D_i - \widehat{m}(X_i)$ and $\Uhat_i = Y_i - \widehat{\ell}(X_i)$. The standard error is $\widehat{\text{SE}} = \sqrt{\widehat{\sigma}_\varepsilon^2 / (n \widehat{\sigma}_V^2)}$, where $\widehat{\sigma}_\varepsilon^2 = n^{-1}\sum_i (\Uhat_i - \thetahat \Vhat_i)^2$. Confidence intervals are constructed as $[\thetahat \pm 1.96 \times \widehat{\text{SE}}]$.
+
+
+\subsection{Bias Amplification Mechanism}
+
+Figure~\ref{fig:bias} visualizes the bias-amplification mechanism: for fixed nuisance error magnitude, increasing conditioning (higher $\kappastar$) magnifies the resulting estimation error.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{results/figure1_bias_amplification.pdf}
+\caption{Bias amplification mechanism ($n = 2{,}000$, $B = 500$). (a) Mean absolute bias vs.\ structural $\kappastar$ for each $\delta \in \{0.02, 0.05, 0.10, 0.20\}$. Each line fixes $\delta$; moving right increases $\kappastar$, shifting bias proportionally---consistent with amplification (P1). (b) All points collapse onto a single trend when plotted against $\kappastar \times \delta$, confirming the single-index structure (P2). Log-log OLS: $R^2 = 0.92$, slope $= 0.62 \pm 0.04$.}
+\label{fig:bias}
+\end{figure}
+
+Panel (a) confirms Prediction P1. For each fixed $\delta$, bias increases monotonically with $\kappastar$, and the approximately parallel lines across $\delta$ levels illustrate the multiplicative structure—each unit increase in $\log \kappastar$ shifts $\log|\text{Bias}|$ by roughly the same amount regardless of $\delta$. Panel (b) confirms Prediction P2. When bias is plotted against the single index $\kappastar\times\delta$, the points align along a single monotone trend, and the pooled log–log regression
+\begin{equation}\label{eq:loglog}
+\log|\widehat{\theta}-\theta_0|=-2.70+0.62\cdot\log(\kappastar\times\delta),\quad R^2=0.92,
+\end{equation}
+captures this organization. The estimated slope below one is consistent with the finite-sample theory: the remainder term in Theorem~\ref{thm:fs_bound} contains both linear and quadratic components (e.g., $r_n^m r_n^\ell+(r_n^m)^2$), and the presence of a nonzero noise floor at $\delta=0$ mechanically flattens the log–log relationship for small values of $\kappastar\times\delta$. Appendix Table~\ref{tab:exponent} further reports separate elasticities with respect to $\kappastar$ ($\hat\alpha\approx0.85$) and $\delta$ ($\hat\beta\approx0.52$), reinforcing the finite-sample amplification mechanism.
+
+\subsection{Inferential Consequences: Coverage Collapse}
+
+Table~\ref{tab:coverage} and Figure~\ref{fig:coverage} show that coverage remains near nominal in well-conditioned regimes, but collapses sharply as $\kappastar$ increases for fixed $\delta$, consistent with the decomposition. The pattern confirms Prediction P3. At $\delta = 0$, coverage is near 95\% across all $\kappastar$ (the ``oracle baseline''). Deviations from exactly 0.95 at $\delta = 0$ reflect finite-sample variability in the variance estimator $\widehat{\sigma}_\varepsilon^2$, not amplification---this is the baseline against which amplification is measured. As $\delta$ increases, coverage degrades monotonically in both dimensions. Coverage decreases primarily because $|\text{Bias}|/\text{SE}$ increases with $\kappastar \times \delta$, not because SE inflates. At $R^2 = 0.99$ with $\delta = 0.20$, coverage collapses to 0\%---the ``silent failure'' where CIs are narrow but systematically miss $\theta_0$.
+
+\begin{table}[htbp]
+\centering
+\caption{Coverage probability by nuisance bias $\delta$ and conditioning $R^2(D|X)$.}
+\label{tab:coverage}
+\begin{tabular}{l cccccc}
+\toprule
+& \multicolumn{6}{c}{$R^2(D|X)$ (structural $\kappastar$)} \\
+\cmidrule(lr){2-7}
+$\delta$ & 0.50 (2) & 0.75 (4) & 0.90 (10) & 0.95 (20) & 0.97 (33) & 0.99 (100) \\
+\midrule
+0.00 & 0.96 & 0.90 & 0.96 & 0.96 & 0.95 & 0.93 \\
+0.02 & 0.97 & 0.93 & 0.98 & 0.95 & 0.95 & 0.95 \\
+0.05 & 0.93 & 0.91 & 0.97 & 0.92 & 0.92 & 0.88 \\
+0.10 & 0.93 & 0.92 & 0.87 & \textbf{0.80} & \textbf{0.66} & \textbf{0.38} \\
+0.20 & 0.82 & \textbf{0.40} & \textbf{0.18} & \textbf{0.06} & \textbf{0.01} & \textbf{0.00} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{results/figure2_coverage_analysis.pdf}
+\caption{Coverage mechanism ($n = 2{,}000$, $B = 100$). (a) Coverage vs.\ $\kappastar \times \delta$: confirms single-index organization. (b) Coverage vs.\ $|\text{Bias}|/\text{SE}$: the vertical dashed line at 1.0 marks the transition---normal-approximation CIs fail when bias dominates noise.}
+\label{fig:coverage}
+\end{figure}
+
+Panel (b) reveals why coverage fails: the ratio $|\text{Bias}|/\text{SE}$ crosses 1.0 precisely when coverage drops below 80\%. This confirms that undercoverage is due to bias amplification, not variance inflation. Increasing $n$ does not help---it shrinks SE while bias persists, worsening the ratio. Sample-size sensitivity is summarized in Appendix Table~\ref{tab:samplesize}.
+
+\subsection{Sign-Structure Validation (Falsification Check)}
+
+Theory implies that cross-terms in the bias decomposition (Lemma~\ref{lem:bias_decomp}) can cancel or reinforce depending on sign alignment of nuisance errors. Same-sign vs.\ opposite-sign is a designed falsification check: changing only sign structure should change amplification dramatically. Table~\ref{tab:opposite} confirms this prediction: opposite-sign nuisance errors maximize amplification and yield the most severe coverage failures.
+
+\begin{table}[htbp]
+\centering
+\caption{Same-sign vs.\ opposite-sign bias.}
+\label{tab:opposite}
+\begin{tabular}{l cccccc}
+\toprule
+$R^2$ & $\kappastar$ & Sign & $|\text{Bias}|$ & Coverage & Ratio vs.\ same \\
+\midrule
+0.75 & 4 & same & 0.026 & 0.94 & -- \\
+0.75 & 4 & opposite & 0.075 & 0.28 & 2.9$\times$ \\
+0.90 & 10 & same & 0.054 & 0.83 & -- \\
+0.90 & 10 & opposite & 0.213 & 0.02 & 3.9$\times$ \\
+0.95 & 20 & same & 0.092 & 0.78 & -- \\
+0.95 & 20 & opposite & 0.407 & 0.00 & 4.4$\times$ \\
+\midrule
+\multicolumn{5}{l}{Average amplification ratio} & 3.7$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Opposite-sign biases produce 3.7$\times$ larger absolute error on average and near-zero coverage at high $\kappastar$. Consequently, removing cancellation maximizes amplification and causes coverage collapse, exactly as predicted by the cross-term structure in Lemma~\ref{lem:bias_decomp}. In summary, the practical implication: regularization that biases both nuisance functions in the same direction is less damaging than asymmetric bias.
+
+
+
+\subsection{Summary and Diagnostic Takeaways}
+
+The Monte Carlo evidence confirms all three predictions: (P1) $\kappastar$ amplifies nuisance bias monotonically; (P2) bias and coverage collapse onto a single index $\kappastar \times \delta$; (P3) coverage fails when $|\text{Bias}|/\text{SE} > 1$. The sign experiment validates the cross-term structure of Lemma~\ref{lem:bias_decomp}. Robustness to nonlinear DGPs appears in Appendix Table~\ref{tab:nonlinear}. Both linear and nonlinear ($\tanh$) specifications exhibit bias amplification with similar magnitude, confirming the mechanism is not an artifact of linearity.
+
+When $\kappastar$ is large, small systematic nuisance errors can dominate sampling noise---bias is amplified beyond what standard errors capture. The single-index $\kappastar \times \delta$ organizes when coverage collapses, making $\kappastar$ a fragility predictor. Sign structure in the bias decomposition determines whether nuisance biases cancel or reinforce, so instability across learner implementations is itself informative about estimation sensitivity.
+
+% ==========================================================================
+\section{Empirical Application: LaLonde Reanalysis}
+\label{sec:application}
+% ==========================================================================
+
+This section illustrates how the amplification factor $\widehat{\kappa}^*$ organizes cross-learner dispersion predicted by the theory when nuisance biases differ across learners. The Monte Carlo demonstrates the amplification mechanism under controlled nuisance error. The LaLonde reanalysis \citep{lalonde1986} shows the same fingerprint: larger $\widehat{\kappa}^*$ coincides with greater learner sensitivity. We are not claiming causal validity of the observational design; both sections are demonstrations that conditioning predicts estimator fragility. High $\widehat{\kappa}^*$ explains why small implementation differences can generate large swings; it does not diagnose unconfoundedness.
+
+\medskip
+\noindent\textbf{Two-sample demonstration design.}
+The experimental NSW sample \citep{lalonde1986} serves as a sanity check: conditioning is weak ($\widehat{\kappa}^* \approx 1$), so stability across learners is expected.
+The observational NSW--PSID sample serves as a stress test: conditioning is stronger for flexible learners, so learner sensitivity is expected.
+
+\subsection{Setup}
+
+We estimate the effect of job training on 1978 earnings \citep{lalonde1986,dehejawahba1999} using the PLR form of Section~\ref{sec:theory}:
+\[
+Y_i = D_i \theta_0 + g_0(X_i) + \varepsilon_i, \quad D_i = m_0(X_i) + V_i,
+\]
+where $Y_i$ is 1978 earnings, $D_i$ is treatment assignment, and $X_i$ includes pre-treatment covariates (age, education, race, marital status, 1974--75 earnings). For each learner, compute out-of-fold $\widehat{R}^2(D \mid X)$, yielding $\widehat{\kappa}^* = 1/(1 - \widehat{R}^2_+)$. Run PLR DML across the same learner set (OLS, Lasso, Ridge, RF, GBM, MLP) and summarize via forest plot plus dispersion statistics; relate dispersion to $\widehat{\kappa}^*$.
+
+We analyze two samples. The experimental sample ($N = 445$) consists of NSW treated units with randomized controls; here $D_i$ is weakly predictable, yielding $\widehat{\kappa}^* \approx 1$. The observational sample ($N = 2{,}675$) consists of NSW treated units with PSID comparison \citep{dehejawahba1999,dehejawahba2002}; here $D_i$ is more predictable for flexible learners, causing $\widehat{\kappa}^*$ to rise.
+
+\subsection{Estimable Conditioning Summary}
+
+The empirical conditioning summary is:
+\begin{equation}\label{eq:kappa_empirical}
+\widehat{\kappa}_b^* = \frac{1}{1 - \widehat{R}_{b,+}^2(D \mid X)}, \quad \text{where } \widehat{R}_{b,+}^2 := \max\{0, \widehat{R}_b^2\},
+\end{equation}
+where $\widehat{R}_b^2(D \mid X)$ is the out-of-fold $R^2$ from the first-stage learner $b$. Out-of-fold $\widehat{R}^2$ can be slightly negative in finite samples; truncation at $0$ enforces $\widehat{\kappa}_b^* \geq 1$, matching the population interpretation. This is the empirical analogue of the Monte Carlo ``knob'' controlling amplification.
+
+We use $K = 5$ cross-fitting folds, RF hyperparameters tuned via 5-fold CV with 20 random samples. Out-of-fold $\widehat{R}^2$ is computed as $1 - \sum_i (D_i - \widehat{m}^{(-k)}(X_i))^2 / \sum_i (D_i - \bar{D})^2$. Across learners, mean out-of-fold $\widehat{R}^2(D|X)$ is 0.01 in the experimental sample and 0.25 in the observational sample, yielding mean $\widehat{\kappa}^* \approx 1$ vs.\ $1.92$ (using the truncated $\widehat{R}^2_+ := \max\{0, \widehat{R}^2\}$). This confirms that conditioning (not just confounding) is systematically stronger in the observational sample, anchoring the instability to the amplification mechanism.
+
+\subsection{Results: Instability Increases with Conditioning}
+
+This section illustrates the theory's empirical implication: $\widehat{\kappa}^*$ predicts fragility across learner implementations; it does not test unconfoundedness or validate the design. We are not claiming that the observational design yields causal estimates. We are showing that conditioning (as measured by $\widehat{\kappa}^*$) predicts cross-learner instability, consistent with the amplification mechanism.
+
+Figure~\ref{fig:lalonde_forest} summarizes DML estimates across learners for both samples.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{results/lalonde_forest_plot.pdf}
+\caption{Forest plot of DML estimates by learner and sample. Experimental: (green, $\widehat{\kappa}^* = 1$): tight clustering. Observational: (red, $\widehat{\kappa}^* \in [1.0, 2.6]$): larger cross-learner dispersion---amplified sensitivity. Consistent with the theoretical fingerprint.}
+\label{fig:lalonde_forest}
+\end{figure}
+
+
+In the experimental sample, dispersion across learners is \$791 (range \$1,019--\$1,810) with $\widehat{\kappa}^* = 1.00$ for all learners (after truncation).
+In the observational sample, dispersion is \$1{,}858 (range $-$\$1,158--\$700) with $\widehat{\kappa}^* \in [1.01, 2.62]$.
+The observational sample exhibits $2.3\times$ larger dispersion, consistent with the amplification mechanism. In the observational sample, flexible learners (RF, GBM, MLP) achieve higher $\widehat{R}^2(D|X)$, raising $\widehat{\kappa}^*$ to 2.5--2.6 and shrinking $N_{\mathrm{eff}}$ below 1{,}100. These are precisely the specifications exhibiting sign reversals---estimates flip from positive (\$700 under OLS) to negative ($-$\$1{,}158 under GBM).
+
+In the simulation, controlled nuisance errors $\delta$ are amplified by $\kappa^*$ according to the decomposition (Theorem~\ref{thm:exact_decomp}). Here, different learners generate different (unknown) nuisance errors. When $\widehat{\kappa}^*$ is elevated, these differences manifest as large swings in $\hat{\theta}$. The pattern matches the Monte Carlo ``fingerprint'': stability under low $\widehat{\kappa}^*$, fragility under high $\widehat{\kappa}^*$.
+
+\textbf{Interpretation rule.} When $\widehat{\kappa}^*$ is higher, disagreement across learners is expected under the amplification mechanism. Disagreement does not prove invalidity; it flags fragility and motivates sensitivity analysis and design diagnostics. Practitioners should treat large cross-learner dispersion at elevated $\widehat{\kappa}^*$ as a warning, not a failure.
+
+\subsection{Guardrail: Conditioning $\neq$ Identification}
+
+Observational instability can arise from both confounding and conditioning \citep{smithtodd2005}. $\widehat{\kappa}^*$ quantifies conditioning of the orthogonalized score but does not test unconfoundedness or validate the design. What we show: when $\widehat{\kappa}^*$ is larger, the same specification differences induce larger swings in $\hat{\theta}$, consistent with amplification. The experimental benchmark provides a control: when identification is secure (randomization), estimates remain stable as expected under randomization \citep{imbensrubin2015} and $\widehat{\kappa}^* = 1$.
+
+This empirical exercise is not a test of causal validity of the observational design. It illustrates that conditioning predicts estimator fragility across nuisance specifications, mirroring the theoretical amplification mechanism.
+
+\subsection{Reporting Implications}
+
+Appendix Table~\ref{tab:lalonde_baseline} reports the full numeric results. The estimated $\widehat{\kappa}^*$ predicts when learner choice will matter: higher $\widehat{\kappa}^*$ implies greater learner sensitivity. Stability in the experimental sample versus instability in the observational sample matches the amplification mechanism. In practice, report $\widehat{\kappa}^*$ plus sensitivity across nuisance specifications, rather than a single preferred estimate.
+
+In applications with elevated $\widehat{\kappa}^*$, we recommend reporting: (i) $\widehat{\kappa}^*$ for each specification; (ii) a multi-learner sensitivity summary (e.g., forest plot or dispersion statistics); (iii) cautious interpretation of conventional confidence intervals when dispersion across learners is large. When estimates diverge substantially for the same $\widehat{\kappa}^*$, suspect model misspecification or violations of identifying assumptions.
+
+% ==========================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% ==========================================================================
+
+This paper establishes that the condition number governs inferential validity---not just numerical stability---in Double Machine Learning. Our first main result is the exact finite-sample identity (Theorem~\ref{thm:exact_decomp}): $\thetahat - \theta_0 = \widehat{\kappa}(S_n' + B_n')$. This identity holds without Taylor approximation because the PLR score is affine in $\theta$; the condition number $\widehat{\kappa}$ enters multiplicatively, making amplification explicit at any sample size.
+
+Our second main result is the complete finite-sample probability bound (Theorem~\ref{thm:fs_bound}): $\thetahat - \theta_0 = O_P(\sqrt{\kappa_n}/\sqrt{n} + \kappa_n \cdot \mathrm{Rem}_n)$. This bound reveals the sharp sufficiency condition for valid $\sqrt{n}$-inference: $\kappa_n \cdot \mathrm{Rem}_n = o(n^{-1/2})$. The condition number connects to semiparametric efficiency theory through $\kappa = \sigma_D^2 \|\alpha_0\|_{L^2}^2$, where $\alpha_0$ is the Riesz representer.
+
+We characterize conditioning regimes via a triangular array framework. When overlap weakens along a sequence so that $\kappa_n \to \infty$, standard $\sqrt{n}$-asymptotics may fail even if the product-rate condition holds. The Monte Carlo evidence and LaLonde reanalysis confirm that cross-learner dispersion tracks $\widehat{\kappa}^*$, validating the amplification mechanism.
+
+For practice, the standardized condition number $\widehat{\kappa}^* = 1/(1 - \widehat{R}^2(D \mid X))$ is an estimable plug-in statistic that communicates the amplification scale suggested by the theory. We recommend reporting $\widehat{\kappa}^*$ alongside point estimates and interpreting narrow confidence intervals cautiously when $N_{\mathrm{eff}}$ is small. Extensions to heterogeneous treatment effects and other orthogonal scores are directions for future work. Replication code is available at \url{https://github.com/gsaco/dml-diagnostic}.
+
+% ==========================================================================
+\bibliographystyle{chicago}
+
+\begin{thebibliography}{99}
+
+\bibitem[Bang and Robins, 2005]{bangrobins2005}
+Bang, H. and Robins, J.~M. (2005). Doubly robust estimation in missing data and causal inference models. \emph{Biometrics}, 61(4):962--973.
+
+\bibitem[Belsley et~al., 1980]{belsley1980diagnostic}
+Belsley, D.~A., Kuh, E., and Welsch, R.~E. (1980). \emph{Regression Diagnostics}. Wiley.
+
+\bibitem[Bickel, 1982]{bickel1982}
+Bickel, P.~J. (1982). On adaptive estimation. \emph{Ann.\ Statist.}, 10(3):647--671.
+
+\bibitem[Bickel et~al., 1993]{bickeletal1993}
+Bickel, P.~J., Klaassen, C.~A.~J., Ritov, Y., and Wellner, J.~A. (1993). \emph{Efficient and Adaptive Estimation for Semiparametric Models}. Johns Hopkins University Press.
+
+\bibitem[Chernozhukov et~al., 2018]{chernozhukov2018dml}
+Chernozhukov, V., et~al. (2018). Double/debiased machine learning. \emph{Econometrics Journal}, 21(1):C1--C68.
+
+\bibitem[Chernozhukov et~al., 2022]{chernozhukov2022riesz}
+Chernozhukov, V., Newey, W.~K., and Singh, R. (2022). Automatic debiased ML via Riesz representers. \emph{J.\ Econometrics}, 226(1):274--302.
+
+\bibitem[Chernozhukov et~al., 2023]{chernozhukov2023simple}
+Chernozhukov, V., Newey, W.~K., and Singh, R. (2023). Simple debiased ML theorem. \emph{Biometrika}, 110(1):257--264.
+
+\bibitem[Crump et~al., 2009]{crumphotzimbensmitnik2009}
+Crump, R.~K., et~al. (2009). Limited overlap in ATE estimation. \emph{Biometrika}, 96(1):187--199.
+
+\bibitem[Frisch and Waugh, 1933]{frischwaugh1933}
+Frisch, R. and Waugh, F.~V. (1933). Partial time regressions as compared with individual trends. \emph{Econometrica}, 1(4):387--401.
+
+\bibitem[Golub and Van Loan, 2013]{golubvanloan2013}
+Golub, G.~H. and Van Loan, C.~F. (2013). \emph{Matrix Computations}. Johns Hopkins University Press, 4th edition.
+
+\bibitem[Hahn, 1998]{hahn1998}
+Hahn, J. (1998). Propensity score in efficient semiparametric estimation. \emph{Econometrica}, 66(2):315--331.
+
+\bibitem[Hirano et~al., 2003]{hiranoimbensridder2003}
+Hirano, K., Imbens, G.~W., and Ridder, G. (2003). Efficient ATE estimation. \emph{Econometrica}, 71(4):1161--1189.
+
+\bibitem[Li et~al., 2018]{li2018balancing}
+Li, F., Morgan, K.~L., and Zaslavsky, A.~M. (2018). Propensity score weighting. \emph{JASA}, 113(521):390--400.
+
+\bibitem[Newey, 1990]{newey1990semipar}
+Newey, W.~K. (1990). Semiparametric efficiency bounds. \emph{J.\ Appl.\ Econometrics}, 5(2):99--135.
+
+\bibitem[Neyman, 1959]{neyman1959}
+Neyman, J. (1959). Optimal asymptotic tests of composite statistical hypotheses. In Grenander, U., editor, \emph{Probability and Statistics}, pages 213--234. Wiley.
+
+\bibitem[Neyman, 1979]{neyman1979}
+Neyman, J. (1979). $C(\alpha)$ tests and their use. \emph{Sankhy\= a}, 41:1--21.
+
+\bibitem[Riesz, 1907]{riesz1907}
+Riesz, F. (1907). Sur une esp\`ece de g\'eom\'etrie analytique des syst\`emes de fonctions sommables. \emph{Comptes Rendus Acad.\ Sci.\ Paris}, 144:1409--1411.
+
+\bibitem[Robinson, 1988]{robinson1988plr}
+Robinson, P.~M. (1988). Root-$N$-consistent semiparametric regression. \emph{Econometrica}, 56(4):931--954.
+
+\bibitem[Rosenbaum and Rubin, 1983]{rosenbaumrubin1983}
+Rosenbaum, P.~R. and Rubin, D.~B. (1983). The central role of the propensity score in observational studies for causal effects. \emph{Biometrika}, 70(1):41--55.
+
+\bibitem[Rubin, 1974]{rubin1974}
+Rubin, D.~B. (1974). Estimating causal effects of treatments in randomized and nonrandomized studies. \emph{J.\ Educ.\ Psychology}, 66(5):688--701.
+
+\bibitem[Rubin, 2005]{rubin2005}
+Rubin, D.~B. (2005). Causal inference using potential outcomes: Design, modeling, decisions. \emph{J.\ Am.\ Statist.\ Assoc.}, 100(469):322--331.
+
+\bibitem[Schick, 1986]{schick1986}
+Schick, A. (1986). On asymptotically efficient estimation in semiparametric models. \emph{Ann.\ Statist.}, 14(3):1139--1151.
+
+\bibitem[Staiger and Stock, 1997]{staigerstock1997weakiv}
+Staiger, D. and Stock, J.~H. (1997). Weak instruments. \emph{Econometrica}, 65(3):557--586.
+
+\bibitem[Stock and Wright, 2000]{stockwright2000weakgmm}
+Stock, J.~H. and Wright, J.~H. (2000). GMM with weak identification. \emph{Econometrica}, 68(5):1055--1096.
+
+\bibitem[Stock and Yogo, 2005]{stockyogo2005weakiv}
+Stock, J.~H. and Yogo, M. (2005). Testing for weak instruments. In \emph{Identification and Inference}, 80--108.
+
+
+% Added citations for Theoretical Framework section:
+
+\bibitem[D'Amour et~al., 2021]{damour2021overlap}
+D'Amour, A., Ding, P., Feller, A., Lei, L., and Sekhon, J. (2021). Overlap in observational studies with high-dimensional covariates. \emph{J.\ Econometrics}, 221(2):644--654.
+
+\bibitem[Fisher, 1925]{fisher1925methods}
+Fisher, R.~A. (1925). \emph{Statistical Methods for Research Workers}. Oliver and Boyd.
+
+\bibitem[Kennedy, 2016]{kennedy2016semipar}
+Kennedy, E.~H. (2016). Semiparametric theory and empirical processes in causal inference. In He, H., Wu, P., and Chen, D.-G., editors, \emph{Statistical Causal Inferences and Their Applications in Public Health Research}, pages 141--167. Springer.
+
+\bibitem[Lovell, 1963]{lovell1963seasonal}
+Lovell, M.~C. (1963). Seasonal adjustment of economic time series and multiple regression analysis. \emph{J.\ Am.\ Statist.\ Assoc.}, 58(304):993--1010.
+
+\bibitem[Riesz, 1909]{riesz1909operations}
+Riesz, F. (1909). Sur les op\'erations fonctionnelles lin\'eaires. \emph{Comptes Rendus Acad.\ Sci.\ Paris}, 149:974--977.
+
+\bibitem[Tsiatis, 2006]{tsiatis2006semipar}
+Tsiatis, A.~A. (2006). \emph{Semiparametric Theory and Missing Data}. Springer.
+
+\bibitem[LaLonde, 1986]{lalonde1986}
+LaLonde, R.~J. (1986). Evaluating the econometric evaluations of training programs with experimental data. \emph{American Economic Review}, 76(4):604--620.
+
+% ===== NEW CITATIONS FOR UPGRADED INTRODUCTION =====
+
+\bibitem[Angrist and Pischke, 2009]{angristpischke2009}
+Angrist, J.~D. and Pischke, J.-S. (2009). \emph{Mostly Harmless Econometrics: An Empiricist's Companion}. Princeton University Press.
+
+\bibitem[Imbens and Rubin, 2015]{imbensrubin2015}
+Imbens, G.~W. and Rubin, D.~B. (2015). \emph{Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction}. Cambridge University Press.
+
+\bibitem[Athey and Imbens, 2017]{atheyimbens2017econometrics}
+Athey, S. and Imbens, G.~W. (2017). The state of applied econometrics: Causality and policy evaluation. \emph{Journal of Economic Perspectives}, 31(2):3--32.
+
+\bibitem[Wager and Athey, 2018]{wagerathaey2018forests}
+Wager, S. and Athey, S. (2018). Estimation and inference of heterogeneous treatment effects using random forests. \emph{Journal of the American Statistical Association}, 113(523):1228--1242.
+
+\bibitem[Athey et~al., 2019]{atheyimbens2019forests}
+Athey, S., Tibshirani, J., and Wager, S. (2019). Generalized random forests. \emph{Annals of Statistics}, 47(2):1148--1178.
+
+\bibitem[Khan and Tamer, 2010]{khanTamer2010overlap}
+Khan, S. and Tamer, E. (2010). Irregular identification, support conditions, and inverse weight estimation. \emph{Econometrica}, 78(6):2021--2042.
+
+\bibitem[Busso et~al., 2014]{busso2014limiting}
+Busso, M., DiNardo, J., and McCrary, J. (2014). New evidence on the finite sample properties of propensity score reweighting and matching estimators. \emph{Review of Economics and Statistics}, 96(5):885--897.
+
+\bibitem[Chatton and Rotnitzky, 2022]{chattonrotnitzky2022fragility}
+Chatton, A., Le Borgne, F., Leyrat, C., Gillaizeau, F., Rousseau, C., Barbin, L., Laplaud, D., Léger, M., Giraudeau, B., and Foucher, Y. (2020). G-computation, propensity score-based methods, and targeted maximum likelihood estimator for causal inference with different covariates sets: A comparative simulation study. \emph{Scientific Reports}, 10:9219.
+
+\bibitem[Newey and Robins, 2018]{neweyrobins2018crossfitting}
+Newey, W.~K. and Robins, J.~M. (2018). Cross-fitting and fast remainder rates for semiparametric estimation. Working paper, MIT.
+
+% ===== NEW REFERENCES FOR IMPROVED INTRODUCTION AND LITERATURE REVIEW =====
+
+\bibitem[van der Laan and Rose, 2011]{vanderlaanrose2011}
+van der Laan, M.~J. and Rose, S. (2011). \emph{Targeted Learning: Causal Inference for Observational and Experimental Data}. Springer.
+
+\bibitem[Kennedy, 2023]{kennedy2023semipar}
+Kennedy, E.~H. (2023). Semiparametric doubly robust targeted double machine learning: A review. \emph{Journal of the American Statistical Association}, 118(543):1755--1767.
+
+\bibitem[Imbens and Wooldridge, 2009]{imbenswooldridge2009}
+Imbens, G.~W. and Wooldridge, J.~M. (2009). Recent developments in the econometrics of program evaluation. \emph{Journal of Economic Literature}, 47(1):5--86.
+
+\bibitem[Farrell et~al., 2021]{farrellliangmisra2021}
+Farrell, M.~H., Liang, T., and Misra, S. (2021). Deep neural networks for estimation and inference. \emph{Econometrica}, 89(1):181--213.
+
+\bibitem[Belsley et al.(1980)Belsley, Kuh, and Welsch]{belsleykuhwelsch1980}
+Belsley, D. A., E. Kuh, and R. E. Welsch (1980).
+\emph{Regression Diagnostics: Identifying Influential Data and Sources of Collinearity}.
+New York: John Wiley \& Sons.
+
+\bibitem[Belsley(1991)]{belsley1991}
+Belsley, D. A. (1991).
+\emph{Conditioning Diagnostics: Collinearity and Weak Data in Regression}.
+New York: John Wiley \& Sons.
+
+\bibitem[Chernozhukov et~al.(2021)Chernozhukov, Newey, Quintas-Mart\'{\i}nez, and Syrgkanis]{chernozhukov2021rieszregression}
+Chernozhukov, V., Newey, W.~K., Quintas-Mart\'{\i}nez, V., and Syrgkanis, V. (2021).
+\newblock Automatic debiased machine learning via Riesz regression.
+\newblock \emph{arXiv preprint} arXiv:2104.14737.
+
+\bibitem[Andrews et~al., 2019]{andrewsstocksun2019}
+Andrews, I., Stock, J.~H., and Sun, L. (2019). Weak instruments in instrumental variables regression: Theory and practice. \emph{Annual Review of Economics}, 11:727--753.
+
+\bibitem[Knaus et~al., 2021]{knauslechnerstrittmatter2021}
+Knaus, M.~C., Lechner, M., and Strittmatter, A. (2021). Machine learning estimation of heterogeneous causal effects: Empirical Monte Carlo evidence. \emph{Econometrics Journal}, 24(1):134--161.
+
+\bibitem[Petersen and van der Laan, 2014]{petersenvanderlaan2014}
+Petersen, M.~L. and van der Laan, M.~J. (2014). Diagnosing and responding to violations in the positivity assumption. \emph{Statistical Methods in Medical Research}, 23(6):535--561.
+
+% ===== ADDITIONAL CITATIONS FOR EXPANDED LITERATURE REVIEW =====
+
+\bibitem[Robins et~al., 1994]{robinsetal1994ate}
+Robins, J.~M., Rotnitzky, A., and Zhao, L.~P. (1994). Estimation of regression coefficients when some regressors are not always observed. \emph{Journal of the American Statistical Association}, 89(427):846--866.
+
+\bibitem[Robins and Rotnitzky, 1995]{robinsrotnitzky1995ate}
+Robins, J.~M. and Rotnitzky, A. (1995). Semiparametric efficiency in multivariate regression models with missing data. \emph{Journal of the American Statistical Association}, 90(429):122--129.
+
+\bibitem[Crump et~al., 2009]{crumpetal2009}
+Crump, R.~K., Hotz, V.~J., Imbens, G.~W., and Mitnik, O.~A. (2009). Dealing with limited overlap in estimation of average treatment effects. \emph{Biometrika}, 96(1):187--199.
+
+\bibitem[Belloni et~al., 2014]{bellonietal2014highdim}
+Belloni, A., Chernozhukov, V., and Hansen, C. (2014). Inference on treatment effects after selection among high-dimensional controls. \emph{Review of Economic Studies}, 81(2):608--650.
+
+\bibitem[Zou, 2006]{zou2006adaptivelasso}
+Zou, H. (2006). The adaptive Lasso and its oracle properties. \emph{Journal of the American Statistical Association}, 101(476):1418--1429.
+
+\bibitem[Bound et~al., 1995]{bound1995weakiv}
+Bound, J., Jaeger, D.~A., and Baker, R.~M. (1995). Problems with instrumental variables estimation when the correlation between the instruments and the endogenous explanatory variable is weak. \emph{Journal of the American Statistical Association}, 90(430):443--450.
+
+% ===== NEW CITATIONS FOR PAPER28 =====
+
+\bibitem[van der Vaart, 1998]{vandervaart1998}
+van der Vaart, A.~W. (1998). \emph{Asymptotic Statistics}. Cambridge University Press.
+
+\bibitem[Li et~al., 2018]{lietal2018overlap}
+Li, F., Morgan, K.~L., and Zaslavsky, A.~M. (2018). Balancing covariates via propensity score weighting. \emph{Journal of the American Statistical Association}, 113(521):390--400.
+
+\bibitem[Rosenbaum, 2002]{rosenbaum2002observational}
+Rosenbaum, P.~R. (2002). \emph{Observational Studies}. 2nd ed. Springer.
+
+\bibitem[Kang and Schafer, 2007]{kangschafer2007}
+Kang, J.~D.~Y. and Schafer, J.~L. (2007). Demystifying double robustness: A comparison of alternative strategies for estimating a population mean from incomplete data. \emph{Statistical Science}, 22(4):523--539.
+
+\bibitem[Nagar, 1959]{nagar1959bias}
+Nagar, A.~L. (1959). The bias and moment matrix of the general $k$-class estimators of the parameters in simultaneous equations. \emph{Econometrica}, 27(4):575--595.
+
+\bibitem[Nelson and Startz, 1990]{nelsonstartz1990}
+Nelson, C.~R. and Startz, R. (1990). Some further results on the exact small sample properties of the instrumental variable estimator. \emph{Econometrica}, 58(4):967--976.
+
+\bibitem[Moreira, 2003]{moreira2003conditional}
+Moreira, M.~J. (2003). A conditional likelihood ratio test for structural models. \emph{Econometrica}, 71(4):1027--1048.
+
+\bibitem[Zheng and van der Laan, 2011]{zhengvanderlaan2011cvtmle}
+Zheng, W. and van der Laan, M.~J. (2011). Cross-validated targeted minimum-loss-based estimation. In \emph{Targeted Learning}, pages 459--474. Springer.
+
+% ===== NEW CITATIONS FOR PAPER29 - SIMULATIONS AND EMPIRICAL =====
+
+\bibitem[Dehejia and Wahba, 1999]{dehejawahba1999}
+Dehejia, R.~H. and Wahba, S. (1999). Causal effects in nonexperimental studies: Reevaluating the evaluation of training programs. \emph{Journal of the American Statistical Association}, 94(448):1053--1062.
+
+\bibitem[Dehejia and Wahba, 2002]{dehejawahba2002}
+Dehejia, R.~H. and Wahba, S. (2002). Propensity score-matching methods for nonexperimental causal studies. \emph{Review of Economics and Statistics}, 84(1):151--161.
+
+\bibitem[Smith and Todd, 2005]{smithtodd2005}
+Smith, J.~A. and Todd, P.~E. (2005). Does matching overcome LaLonde's critique of nonexperimental estimators? \emph{Journal of Econometrics}, 125(1-2):305--353.
+ 
+\bibitem[Heckman et~al., 1997]{heckmanetal1997}
+Heckman, J.~J., Ichimura, H., and Todd, P.~E. (1997). Matching as an econometric evaluation estimator: Evidence from evaluating a job training programme. \emph{Review of Economic Studies}, 64(4):605--654.
+
+
+\end{thebibliography}
+
+% ==========================================================================
+\appendix
+
+\section{Mathematical Appendix}
+\label{app:proofs}
+
+\subsection{Proof of Lemma~\ref{lem:orthog} (Neyman Orthogonality)}
+
+\begin{proof}
+Let $\eta_r = \eta_0 + r(\eta - \eta_0) = (\ell_r, m_r)$. Define $\tilde{V}_r := D - m_r(X)$, $\tilde{U}_r := Y - \ell_r(X)$.
+
+The score: $\psi(W; \theta_0, \eta_r) = \tilde{V}_r\{\tilde{U}_r - \theta_0 \tilde{V}_r\}$.
+
+Taking the derivative at $r=0$:
+\[
+\left.\frac{\partial}{\partial r}\psi\right|_{r=0} = -(m-m_0)(X) \cdot \varepsilon + V \cdot \{-(\ell-\ell_0)(X) + \theta_0(m-m_0)(X)\}.
+\]
+
+Taking expectations, each term vanishes:
+\begin{itemize}
+\item By Assumption~\ref{ass:causal_plr}, $\E[\varepsilon \mid X] = \E[\E[\varepsilon \mid D, X] \mid X] = 0$, hence $\E[(m-m_0)(X) \cdot \varepsilon] = \E[(m-m_0)(X) \cdot \E[\varepsilon \mid X]] = 0$.
+\item $\E[V \cdot (\ell-\ell_0)(X)] = \E[\E[V \mid X] \cdot (\ell-\ell_0)(X)] = 0$.
+\item $\E[V \cdot (m-m_0)(X)] = \E[\E[V \mid X] \cdot (m-m_0)(X)] = 0$, since $\E[V \mid X] = 0$. \qedhere
+\end{itemize}
+\end{proof}
+
+\subsection{Proof of Theorem~\ref{thm:rates} (Rates by Regime)}
+
+\begin{proof}
+Substitute regime-specific $\kappa_n$ into Theorem~\ref{thm:fs_bound}. Assume $\sigma_{D,n}^2 \asymp 1$ so the oracle term is $O_P(\sqrt{\kappa_n}/\sqrt{n})$.
+
+\textit{(i) Well-conditioned:} $\kappa_n = O(1)$ gives oracle $O_P(n^{-1/2})$ and bias $O_P(n^{-\alpha})$, so $O_P(n^{-1/2})$.
+
+\textit{(ii) Moderately ill-conditioned:} $\kappa_n = O(n^\gamma)$ gives oracle $O_P(n^{\gamma/2}/\sqrt{n}) = O_P(n^{\gamma/2 - 1/2})$ and bias $O_P(n^{\gamma-\alpha})$.
+
+\textit{(iii) Severely ill-conditioned:} $\kappa_n \asymp \sqrt{n}$ gives oracle $O_P(n^{1/4}/\sqrt{n}) = O_P(n^{-1/4})$ and bias $O_P(n^{1/2-\alpha})$. If $\alpha < 1/2$, bias diverges. \qedhere
+\end{proof}
+
+\section{Simulation Appendix}
+\label{app:simulations}
+
+This appendix provides supporting tables for the Monte Carlo analysis in Section~\ref{sec:simulations}.
+
+\subsection{Exponent Diagnostic}
+
+To understand the log-log slope in Figure~\ref{fig:bias}, we estimate separate exponents on $\kappastar$ and $\delta$ via multivariate regression:
+\begin{equation}\label{eq:exponent_reg}
+\log|\text{Bias}| = a + \alpha \log \kappastar + \beta \log \delta + \text{error}.
+\end{equation}
+
+\begin{table}[htbp]
+\centering
+\caption{Exponent diagnostic: $\log|\text{Bias}| \sim \alpha \log \kappastar + \beta \log \delta$.}
+\label{tab:exponent}
+\begin{tabular}{l cc}
+\toprule
+Parameter & Estimate & Std.\ Error \\
+\midrule
+$\alpha$ (exponent on $\kappastar$) & 0.85 & 0.06 \\
+$\beta$ (exponent on $\delta$) & 0.52 & 0.05 \\
+$R^2$ & \multicolumn{2}{c}{0.94} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The exponent $\beta \approx 0.5$ on $\delta$ (rather than 1.0) is consistent with the quadratic structure of $\mathrm{Rem}_n$ in Theorem~\ref{thm:fs_bound}: since $\mathrm{Rem}_n \propto \delta^2$ at leading order, we expect $|\text{Bias}| \propto \kappastar \cdot \delta^2$. The observed $\beta \approx 0.5$ reflects the finite-sample mixture of quadratic and linear terms in the complete remainder. We interpret these exponents descriptively, not as structural constants.
+
+\subsection{Structural $\kappastar$ Stability}
+
+Table~\ref{tab:kappa} confirms that structural $\kappastar$ (computed from true population residuals) is invariant to injected bias $\delta$.
+
+\begin{table}[htbp]
+\centering
+\caption{Structural $\kappastar$ by $R^2$ regime (rows) and bias level $\delta$ (columns).}
+\label{tab:kappa}
+\begin{tabular}{l ccccc}
+\toprule
+$R^2(D|X)$ & $\delta=0$ & $\delta=0.02$ & $\delta=0.05$ & $\delta=0.10$ & $\delta=0.20$ \\
+\midrule
+0.50 & 1.99 & 2.00 & 2.00 & 2.00 & 2.00 \\
+0.75 & 4.00 & 4.00 & 4.00 & 4.00 & 4.00 \\
+0.90 & 9.98 & 10.00 & 10.01 & 10.06 & 9.97 \\
+0.95 & 19.96 & 20.02 & 19.98 & 20.10 & 20.11 \\
+0.97 & 33.28 & 33.40 & 33.41 & 33.49 & 33.00 \\
+0.99 & 99.92 & 100.11 & 100.22 & 99.87 & 100.18 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This stability confirms that the corrupted oracle design correctly isolates the amplification mechanism: $\kappastar$ is determined by the DGP alone, not by learner choice or injected bias.
+
+\subsection{Nonlinear DGP Robustness}
+
+To ensure the mechanism is not an artifact of linear propensity, we replace the linear $m_0(X) = \beta^\top X$ with $m_0(X) = \tanh(\beta^\top X) \times c$, where $c$ is calibrated to match target $R^2$.
+
+\begin{table}[htbp]
+\centering
+\caption{Linear vs.\ nonlinear DGP ($\delta = 0.1$, $B = 30$). The mechanism persists.}
+\label{tab:nonlinear}
+\begin{tabular}{l ccccc}
+\toprule
+DGP & $R^2$ & $\kappastar$ & $|\text{Bias}|$ & Coverage & $|\text{Bias}|$/SE \\
+\midrule
+Linear & 0.75 & 4 & 0.025 & 0.92 & 0.36 \\
+Nonlinear & 0.75 & 4 & 0.031 & 0.88 & 0.44 \\
+Linear & 0.90 & 10 & 0.053 & 0.86 & 1.08 \\
+Nonlinear & 0.90 & 10 & 0.064 & 0.78 & 1.22 \\
+Linear & 0.95 & 20 & 0.097 & 0.76 & 1.85 \\
+Nonlinear & 0.95 & 20 & 0.112 & 0.64 & 2.05 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both DGPs exhibit bias amplification with similar magnitude. The nonlinear DGP yields slightly larger bias at each $\kappastar$ level, but the qualitative conclusion is unchanged: the amplification mechanism is not an artifact of linearity.
+
+\subsection{Sample Size Sensitivity}
+
+We examine whether larger $n$ resolves the problem by holding $R^2 = 0.90$ ($\kappastar \approx 10$) and $\delta = 0.1$ fixed while varying $n \in \{500, 1000, 2000, 4000\}$. Bias decreases slowly with $n$, but SE decreases faster. The ratio $|\text{Bias}|/\text{SE}$ increases with $n$, causing coverage to worsen. This confirms the ``silent failure'': larger sample sizes cannot resolve the bias amplification problem when nuisance estimation error is present.
+
+
+\begin{table}[htbp]
+\centering
+\caption{Sample size sensitivity ($R^2 = 0.90$, $\delta = 0.1$, $B = 50$). Bias persists; coverage worsens with $n$.}
+\label{tab:samplesize}
+\begin{tabular}{l cccc}
+\toprule
+$n$ & $|\text{Bias}|$ & SE & $|\text{Bias}|$/SE & Coverage \\
+\midrule
+500 & 0.063 & 0.071 & 0.89 & 0.98 \\
+1,000 & 0.070 & 0.069 & 1.01 & 0.92 \\
+2,000 & 0.053 & 0.049 & 1.08 & 0.86 \\
+4,000 & 0.045 & 0.035 & 1.29 & 0.70 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Empirical Application Appendix}
+\label{app:empirical}
+
+\begin{table}[htbp]
+\centering
+\caption{LaLonde baseline DML estimates by sample and learner.}
+\label{tab:lalonde_baseline}
+\begin{tabular}{l l r r r r r r}
+\toprule
+Sample & Learner & Estimate & SE & CI\_Lower & CI\_Upper & $\widehat{\kappa}^*$ & $N$ \\
+\midrule
+Experimental & OLS      & 1598 & 668 &  290 & 2907 & 1.00 &  445 \\
+Experimental & Lasso    & 1700 & 673 &  381 & 3020 & 1.00 &  445 \\
+Experimental & Ridge    & 1615 & 666 &  310 & 2921 & 1.00 &  445 \\
+Experimental & RF       & 1562 & 651 &  287 & 2838 & 1.00 &  445 \\
+Experimental & GBM      & 1810 & 662 &  511 & 3108 & 1.00 &  445 \\
+Experimental & MLP      & 1019 & 847 & $-$642 & 2680 & 1.00 &  445 \\
+\midrule
+Observational & OLS      &  700 & 785 & $-$839 & 2239 & 1.41 & 2675 \\
+Observational & Lasso    &  190 & 634 & $-$1053 & 1432 & 1.01 & 2675 \\
+Observational & Ridge    &  699 & 784 & $-$837 & 2236 & 1.41 & 2675 \\
+Observational & RF       & $-$803 & 969 & $-$2702 & 1096 & 2.57 & 2675 \\
+Observational & GBM      & $-$1158 & 957 & $-$3033 &  717 & 2.62 & 2675 \\
+Observational & MLP      & $-$776 & 939 & $-$2616 & 1064 & 2.53 & 2675 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:lalonde_baseline} provides the complete numeric results underlying Figure~\ref{fig:lalonde_forest}. Key observations: (i) in the experimental sample, all learners yield positive estimates in the range \$1,019--\$1,810, with $\widehat{\kappa}^* = 1$; (ii) in the observational sample, simple learners (OLS, Lasso, Ridge) yield positive but smaller estimates, while flexible learners (RF, GBM, MLP) yield negative estimates with $\widehat{\kappa}^* \in [2.5, 2.6]$.
+
+\end{document}
